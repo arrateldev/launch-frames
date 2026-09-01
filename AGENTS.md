@@ -7,6 +7,7 @@ This file is the working memory for Codex in this repository. Keep it updated wh
 - Next.js SaaS starter using the App Router, React 19, TypeScript, Tailwind CSS 4, shadcn-style UI components, Drizzle ORM, Postgres, and Stripe.
 - Arratel is the umbrella brand for this SaaS portfolio. The primary domain is `arratel.dev`, and the contact email is `contact@arratel.dev`.
 - `arratel.dev` is reserved for the Arratel homepage. This starter template can be tested on `saas.arratel.dev` when deployed.
+- The current product/work-in-progress SaaS in this repository is `LaunchFrames`, an app screenshot and launch asset studio for developers. The product brief lives in `docs/marketing-asset-studio-saas-idea.md`.
 - Arratel brand colors are `#787ff6` as primary and `#69c4ff` as secondary/cyan. Theme variables live in `app/globals.css`; use the secondary color for subtle aura, glow, and brand-gradient accents rather than making every component blue.
 - Main brand, product, company, domain, contact, social, icon, and legal placeholder configuration lives in `lib/site-config.ts`.
 - Internationalization currently supports `de` and `en` in `lib/i18n/config.ts`; `defaultLocale` is `en`.
@@ -28,6 +29,8 @@ This file is the working memory for Codex in this repository. Keep it updated wh
 - `app/[locale]/(dashboard)/dashboard/layout.tsx` reuses the legacy dashboard layout from `app/(dashboard)/dashboard/layout.tsx` and provides SWR fallback data for `/api/user` and `/api/team`.
 - Legal pages use stable English slugs for all locales: `/privacy-policy`, `/terms-of-use`, and `/imprint`. Use `localizeLegalPath()` and `legalRoutePaths` from `lib/i18n/config.ts`; old `/datenschutz`, `/terms`, and `/impressum` routes should only redirect.
 - The localized `/links` page is a reusable link-in-bio/social links page. It should stay generic and read website, contact email, product claim, and social profiles from `lib/site-config.ts` helpers.
+- The localized `/studio` page is the first LaunchFrames MVP surface. It currently lives in `features/launchframes-studio/studio.tsx` and provides a client-side URL/upload-to-preview workflow with pack presets, scene copy editing, template switching, brand color control, canvas zoom/crop controls, and 2x PNG preview export.
+- Real URL screenshots for the Studio are captured through `app/api/capture/route.ts` with Playwright Chromium. Local machines need `npx playwright install chromium` once after dependency install; hosted environments must provide Playwright-compatible browser binaries.
 - There are still legacy non-localized route groups under `app/(dashboard)` and `app/(login)`. Be careful when changing shared behavior: confirm whether the localized or legacy route is the active target.
 - API routes live under `app/api`.
 - Feature flags live in `lib/config/feature-flags.ts`. `DEPLOYMENT_MODE=minimal` is for static/landing launches without auth, database, or Stripe; `full` enables the SaaS flows.

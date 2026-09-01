@@ -125,13 +125,13 @@ export const siteConfig = {
     social: arratelSocial
   },
   product: {
-    name: 'SaaS Starter',
+    name: 'LaunchFrames',
     makerLabel: 'by Arratel',
     contact: {
       email: null as string | null
     },
     urls: {
-      defaultBaseUrl: 'https://saas.arratel.dev'
+      defaultBaseUrl: 'https://launchframes.arratel.dev'
     },
     icons: {
       logo: '/favicon.ico',
@@ -140,17 +140,17 @@ export const siteConfig = {
       appleIcon: '/apple-icon.png'
     },
     claim: {
-      de: 'Ein Starter für fokussierte SaaS-Produkte.',
-      en: 'A starter for focused SaaS products.'
+      de: 'Store-ready screenshots in minutes.',
+      en: 'Store-ready screenshots in minutes.'
     },
     metadata: {
       title: {
-        de: 'SaaS Starter',
-        en: 'SaaS Starter'
+        de: 'LaunchFrames',
+        en: 'LaunchFrames'
       },
       description: {
-        de: 'Ein Arratel SaaS-Starter für nützliche digitale Workflows.',
-        en: 'An Arratel SaaS starter for useful digital workflows.'
+        de: 'Erzeuge professionelle Store- und Social-Marketingbilder aus App-URLs oder Screenshots.',
+        en: 'Generate polished store and social marketing assets from app URLs or screenshots.'
       }
     },
     social: null as SocialLink[] | null

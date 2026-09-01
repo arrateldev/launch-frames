@@ -106,6 +106,12 @@ export function SiteChrome({
                 </Link>
               ) : null}
               <Link
+                href={localizePath(locale, '/studio')}
+                className="transition-colors hover:text-white"
+              >
+                {t.common.studio}
+              </Link>
+              <Link
                 href={localizePath(locale, '/faq')}
                 className="transition-colors hover:text-white"
               >
@@ -199,6 +205,7 @@ function Header({
 
   const navItems = [
     { href: localizePath(locale, '/'), label: t.common.home },
+    { href: localizePath(locale, '/studio'), label: t.common.studio },
     ...(features.pricing
       ? [{ href: localizePath(locale, '/pricing'), label: t.common.pricing }]
       : []),
