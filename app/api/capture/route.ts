@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
     const screenshot = await page.screenshot({
       type: 'png',
-      fullPage: false
+      fullPage: true
     });
 
     return new NextResponse(new Blob([new Uint8Array(screenshot)]), {

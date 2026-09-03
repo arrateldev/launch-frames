@@ -1,23 +1,17 @@
 'use client';
 
-import { useMemo, useRef, useState, type PointerEvent } from 'react';
+import { useMemo, useState, type PointerEvent } from 'react';
 import {
   Aperture,
-  ArrowUpLeft,
-  Camera,
   Check,
-  Crosshair,
   Download,
-  ImageUp,
-  Layers3,
   Link as LinkIcon,
   Monitor,
   Moon,
   Palette,
   Smartphone,
   Sparkles,
-  Sun,
-  Tablet
+  Sun
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,15 +30,33 @@ type Scene = {
 type PackId = 'social' | 'appStore' | 'googlePlay' | 'microsoft';
 type TemplateId = 'clean' | 'contrast' | 'halo';
 type CropState = {
-  zoom: number;
-  offsetX: number;
-  offsetY: number;
+  viewportZoom: number;
+  featureZoom: number;
+  featureOffsetX: number;
+  featureOffsetY: number;
+  appRadius: number;
 };
 
 type FrameState = {
   x: number;
   y: number;
-  scale: number;
+  width: number;
+  height: number;
+};
+
+type FrameResizeHandle =
+  | 'top'
+  | 'right'
+  | 'bottom'
+  | 'left'
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-right'
+  | 'bottom-left';
+
+type ImageSize = {
+  width: number;
+  height: number;
 };
 
 const packOptions = [
@@ -84,10 +96,26 @@ const initialScenes: Scene[] = [
   }
 ];
 
-const deviceIcons = {
-  desktop: Monitor,
-  phone: Smartphone,
-  tablet: Tablet
+const DEFAULT_CONTENT_ZOOM = 0.8;
+const APP_PREVIEW_INSET = 3;
+const DEFAULT_CROP: CropState = {
+  viewportZoom: DEFAULT_CONTENT_ZOOM,
+  featureZoom: 1,
+  featureOffsetX: 0,
+  featureOffsetY: 0,
+  appRadius: 13
+};
+const DESKTOP_FRAME: FrameState = {
+  x: 67,
+  y: 46,
+  width: 58,
+  height: 69
+};
+const PHONE_FRAME: FrameState = {
+  x: 72,
+  y: 47,
+  width: 25,
+  height: 80
 };
 
 export function LaunchFramesStudio({
@@ -97,33 +125,32 @@ export function LaunchFramesStudio({
 }) {
   const t = getMessages(locale).studio;
   const [sourceUrl, setSourceUrl] = useState('https://clavispass.github.io/ClavisPass/');
-  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
   const [capturedPreview, setCapturedPreview] = useState<string | null>(null);
+  const [imageSize, setImageSize] = useState<ImageSize | null>(null);
   const [selectedPack, setSelectedPack] = useState<PackId>('social');
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateId>('clean');
   const [scenes, setScenes] = useState<Scene[]>(initialScenes);
-  const [selectedSceneId, setSelectedSceneId] = useState(initialScenes[0].id);
   const [brandColor, setBrandColor] = useState('#787ff6');
   const [accentColor, setAccentColor] = useState('#69c4ff');
-  const [crop, setCrop] = useState<CropState>({
-    zoom: 1.15,
-    offsetX: 0,
-    offsetY: 0
-  });
-  const [frame, setFrame] = useState<FrameState>({
-    x: 67,
-    y: 46,
-    scale: 1
-  });
+  const [crop, setCrop] = useState<CropState>(DEFAULT_CROP);
+  const [frame, setFrame] = useState<FrameState>(DESKTOP_FRAME);
   const [captureState, setCaptureState] = useState<'idle' | 'capturing' | 'error'>('idle');
   const [exportState, setExportState] = useState<'idle' | 'exporting' | 'ready' | 'error'>('idle');
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const selectedScene = scenes.find((scene) => scene.id === selectedSceneId) ?? scenes[0];
+  const selectedScene = scenes[0];
   const selectedPackConfig =
     packOptions.find((pack) => pack.id === selectedPack) ?? packOptions[0];
   const normalizedSourceUrl = normalizeSourceUrl(sourceUrl);
-  const canvasImage = uploadPreview ?? capturedPreview;
+  const canvasImage = capturedPreview;
+  const featurePanLimit = getFeaturePanLimit(crop.featureZoom);
+  const featurePanLimitX = canvasImage
+    ? getImageFeaturePanLimit(crop, frame, imageSize, 'x')
+    : featurePanLimit;
+  const featurePanLimitY = canvasImage
+    ? getImageFeaturePanLimit(crop, frame, imageSize, 'y')
+    : featurePanLimit;
+  const featureOffsetX = clamp(crop.featureOffsetX, -featurePanLimitX, featurePanLimitX);
+  const featureOffsetY = clamp(crop.featureOffsetY, -featurePanLimitY, featurePanLimitY);
 
   const exportName = useMemo(
     () => `launchframes-${selectedPack}-${selectedScene.id}.png`,
@@ -137,20 +164,6 @@ export function LaunchFramesStudio({
       )
     );
     setExportState('idle');
-  }
-
-  function handleUpload(file: File | undefined) {
-    if (!file) {
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setUploadPreview(typeof reader.result === 'string' ? reader.result : null);
-      setCapturedPreview(null);
-      setExportState('idle');
-    };
-    reader.readAsDataURL(file);
   }
 
   async function captureCurrentUrl() {
@@ -178,8 +191,10 @@ export function LaunchFramesStudio({
 
       const blob = await response.blob();
       const dataUrl = await blobToDataUrl(blob);
+      const nextImageSize = await getImageSize(dataUrl);
       setCapturedPreview(dataUrl);
-      setUploadPreview(null);
+      setImageSize(nextImageSize);
+      setCrop(DEFAULT_CROP);
       setCaptureState('idle');
       return dataUrl;
     } catch {
@@ -220,21 +235,7 @@ export function LaunchFramesStudio({
         <div className="mx-auto w-full max-w-[1800px] px-3 py-5 sm:px-5 sm:py-6 2xl:px-8">
           <div className="grid gap-4 xl:grid-cols-[340px_minmax(720px,1fr)_320px] 2xl:grid-cols-[360px_minmax(860px,1fr)_340px]">
             <aside className="surface-card rounded-[22px] p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    {t.sourceEyebrow}
-                  </p>
-                  <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-                    {t.title}
-                  </h1>
-                </div>
-                <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-primary/12 text-primary">
-                  <Aperture className="h-5 w-5" />
-                </div>
-              </div>
-
-              <div className="mt-5 space-y-4">
+              <div className="space-y-4">
                 <label className="block">
                   <span className="text-sm font-medium text-foreground">
                     {t.appUrl}
@@ -248,64 +249,15 @@ export function LaunchFramesStudio({
                       onChange={(event) => {
                         setSourceUrl(event.target.value);
                         setCapturedPreview(null);
+                        setImageSize(null);
+                        setCrop(DEFAULT_CROP);
                         setExportState('idle');
                       }}
                       placeholder="https://your-app.com"
                       className="h-10"
                     />
                   </div>
-                  <Button
-                    type="button"
-                    className="mt-2 w-full justify-start"
-                    disabled={captureState === 'capturing'}
-                    onClick={() => void captureCurrentUrl()}
-                  >
-                    <Camera className="h-4 w-4" />
-                    {captureState === 'capturing' ? t.capturing : t.captureUrl}
-                  </Button>
-                  {captureState === 'error' ? (
-                    <p className="mt-2 text-xs leading-5 text-destructive">
-                      {t.captureError}
-                    </p>
-                  ) : null}
                 </label>
-
-                <div>
-                  <span className="text-sm font-medium text-foreground">
-                    {t.screenshot}
-                  </span>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(event) => handleUpload(event.target.files?.[0])}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="mt-2 w-full justify-start"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <ImageUp className="h-4 w-4" />
-                    {canvasImage ? t.replaceScreenshot : t.uploadScreenshot}
-                  </Button>
-                  {canvasImage ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="mt-1 w-full justify-start text-muted-foreground"
-                      onClick={() => {
-                        setUploadPreview(null);
-                        setCapturedPreview(null);
-                        setExportState('idle');
-                      }}
-                    >
-                      {t.showLivePreview}
-                    </Button>
-                  ) : null}
-                </div>
 
                 <label className="block">
                   <span className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -358,55 +310,34 @@ export function LaunchFramesStudio({
                       {t.exportScale}
                     </span>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-3 w-full justify-start text-xs"
-                    onClick={() => {
-                      setFrame({ x: 67, y: 46, scale: 1 });
-                      setExportState('idle');
-                    }}
-                  >
-                    <Crosshair className="h-3.5 w-3.5" />
-                    {t.resetFrame}
-                  </Button>
-                  <CanvasSlider
-                    label={t.frameSize}
-                    value={frame.scale}
-                    min={0.65}
-                    max={1.35}
-                    step={0.01}
-                    display={`${Math.round(frame.scale * 100)}%`}
-                    onChange={(value) => {
-                      setFrame((current) => ({ ...current, scale: value }));
-                      setExportState('idle');
-                    }}
-                  />
-                  <CanvasSlider
-                    label={t.frameX}
-                    value={frame.x}
-                    min={35}
-                    max={88}
-                    step={1}
-                    display={`${frame.x}`}
-                    onChange={(value) => {
-                      setFrame((current) => ({ ...current, x: value }));
-                      setExportState('idle');
-                    }}
-                  />
-                  <CanvasSlider
-                    label={t.frameY}
-                    value={frame.y}
-                    min={22}
-                    max={78}
-                    step={1}
-                    display={`${frame.y}`}
-                    onChange={(value) => {
-                      setFrame((current) => ({ ...current, y: value }));
-                      setExportState('idle');
-                    }}
-                  />
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="justify-start px-2 text-xs"
+                      onClick={() => {
+                        setFrame(DESKTOP_FRAME);
+                        setExportState('idle');
+                      }}
+                    >
+                      <Monitor className="h-3.5 w-3.5" />
+                      {t.desktopFrame}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="justify-start px-2 text-xs"
+                      onClick={() => {
+                        setFrame(PHONE_FRAME);
+                        setExportState('idle');
+                      }}
+                    >
+                      <Smartphone className="h-3.5 w-3.5" />
+                      {t.phoneFrame}
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="rounded-[16px] border border-border/70 bg-secondary/45 p-3">
@@ -415,93 +346,89 @@ export function LaunchFramesStudio({
                       {t.canvas}
                     </span>
                   </div>
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="px-2 text-xs"
-                      onClick={() => {
-                        setCrop({ zoom: 1, offsetX: 40, offsetY: 40 });
-                        setExportState('idle');
-                      }}
-                    >
-                      <ArrowUpLeft className="h-3.5 w-3.5" />
-                      {t.topLeft}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="px-2 text-xs"
-                      onClick={() => {
-                        setCrop({ zoom: 1.15, offsetX: 0, offsetY: 0 });
-                        setExportState('idle');
-                      }}
-                    >
-                      <Crosshair className="h-3.5 w-3.5" />
-                      {t.center}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="px-2 text-xs"
-                      onClick={() => {
-                        setCrop({ zoom: 1.45, offsetX: 0, offsetY: 0 });
-                        setExportState('idle');
-                      }}
-                    >
-                      <Aperture className="h-3.5 w-3.5" />
-                      {t.closeUp}
-                    </Button>
-                  </div>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="mt-2 w-full justify-start text-xs"
+                    className="mt-3 w-full justify-start text-xs"
                     onClick={() => {
-                      setCrop({ zoom: 1, offsetX: 0, offsetY: 0 });
+                      setCrop(DEFAULT_CROP);
                       setExportState('idle');
                     }}
                   >
-                    <Crosshair className="h-3.5 w-3.5" />
-                    {t.fitInFrame}
+                    <Aperture className="h-3.5 w-3.5" />
+                    {t.resetCanvas}
                   </Button>
                   <CanvasSlider
-                    label={t.zoom}
-                    value={crop.zoom}
+                    label={t.viewportZoom}
+                    value={crop.viewportZoom}
                     min={0.5}
-                    max={2.4}
-                    step={0.05}
-                    display={`${Math.round(crop.zoom * 100)}%`}
+                    max={1.25}
+                    step={0.01}
+                    display={`${Math.round(crop.viewportZoom * 100)}%`}
                     onChange={(value) => {
-                      setCrop((current) => ({ ...current, zoom: value }));
+                      setCrop((current) => ({ ...current, viewportZoom: value }));
                       setExportState('idle');
                     }}
                   />
                   <CanvasSlider
-                    label={t.horizontal}
-                    value={crop.offsetX}
-                    min={-40}
-                    max={40}
-                    step={1}
-                    display={`${crop.offsetX}`}
+                    label={t.featureZoom}
+                    value={crop.featureZoom}
+                    min={1}
+                    max={2.8}
+                    step={0.01}
+                    display={`${Math.round(crop.featureZoom * 100)}%`}
                     onChange={(value) => {
-                      setCrop((current) => ({ ...current, offsetX: value }));
+                      const nextCrop = { ...crop, featureZoom: value };
+                      const nextPanLimit = getFeaturePanLimit(value);
+                      const nextPanLimitX = canvasImage
+                        ? getImageFeaturePanLimit(nextCrop, frame, imageSize, 'x')
+                        : nextPanLimit;
+                      const nextPanLimitY = canvasImage
+                        ? getImageFeaturePanLimit(nextCrop, frame, imageSize, 'y')
+                        : nextPanLimit;
+                      setCrop((current) => ({
+                        ...current,
+                        featureZoom: value,
+                        featureOffsetX: clamp(current.featureOffsetX, -nextPanLimitX, nextPanLimitX),
+                        featureOffsetY: clamp(current.featureOffsetY, -nextPanLimitY, nextPanLimitY)
+                      }));
                       setExportState('idle');
                     }}
                   />
                   <CanvasSlider
-                    label={t.vertical}
-                    value={crop.offsetY}
-                    min={-40}
-                    max={40}
+                    label={t.featureX}
+                    value={featureOffsetX}
+                    min={-featurePanLimitX}
+                    max={featurePanLimitX}
                     step={1}
-                    display={`${crop.offsetY}`}
+                    display={`${featureOffsetX}`}
                     onChange={(value) => {
-                      setCrop((current) => ({ ...current, offsetY: value }));
+                      setCrop((current) => ({ ...current, featureOffsetX: value }));
+                      setExportState('idle');
+                    }}
+                  />
+                  <CanvasSlider
+                    label={t.featureY}
+                    value={featureOffsetY}
+                    min={-featurePanLimitY}
+                    max={featurePanLimitY}
+                    step={1}
+                    display={`${featureOffsetY}`}
+                    onChange={(value) => {
+                      setCrop((current) => ({ ...current, featureOffsetY: value }));
+                      setExportState('idle');
+                    }}
+                  />
+                  <CanvasSlider
+                    label={t.borderRadius}
+                    value={crop.appRadius}
+                    min={0}
+                    max={32}
+                    step={1}
+                    display={`${crop.appRadius}px`}
+                    onChange={(value) => {
+                      setCrop((current) => ({ ...current, appRadius: value }));
                       setExportState('idle');
                     }}
                   />
@@ -543,7 +470,7 @@ export function LaunchFramesStudio({
                 </div>
               </div>
 
-              <div className="mt-5 overflow-hidden rounded-[18px] border border-border/70 bg-slate-950 p-3 shadow-[0_28px_70px_-48px_rgba(15,23,42,0.7)]">
+              <div className="mt-5 overflow-hidden rounded-[18px] border border-border/60 bg-background p-1 shadow-[0_22px_60px_-48px_rgba(15,23,42,0.45)]">
                 <PreviewCanvas
                   scene={selectedScene}
                   template={selectedTemplate}
@@ -557,7 +484,8 @@ export function LaunchFramesStudio({
                     setExportState('idle');
                   }}
                   crop={crop}
-                  uploadPreview={canvasImage}
+                  capturedPreview={canvasImage}
+                  imageSize={imageSize}
                 />
               </div>
 
@@ -591,46 +519,10 @@ export function LaunchFramesStudio({
             <aside className="surface-card rounded-[22px] p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    {t.scenes}
-                  </p>
                   <h2 className="mt-2 text-xl font-semibold text-foreground">
                     {t.sceneEditor}
                   </h2>
                 </div>
-                <Layers3 className="h-5 w-5 text-primary" />
-              </div>
-
-              <div className="mt-4 space-y-2">
-                {scenes.map((scene) => {
-                  const Icon = deviceIcons[scene.device];
-
-                  return (
-                    <button
-                      key={scene.id}
-                      type="button"
-                      onClick={() => setSelectedSceneId(scene.id)}
-                      className={cn(
-                        'flex w-full items-center gap-3 rounded-[14px] border p-3 text-left transition-colors',
-                        selectedSceneId === scene.id
-                          ? 'border-primary/45 bg-primary/10'
-                          : 'border-border/70 bg-background hover:bg-secondary/70'
-                      )}
-                    >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] bg-secondary text-muted-foreground">
-                        <Icon className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-foreground">
-                          {scene.name}
-                        </span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {scene.headline}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
               </div>
 
               <div className="mt-5 space-y-4">
@@ -701,7 +593,8 @@ function PreviewCanvas({
   frame,
   onFrameChange,
   crop,
-  uploadPreview
+  capturedPreview,
+  imageSize
 }: {
   scene: Scene;
   template: TemplateId;
@@ -712,7 +605,8 @@ function PreviewCanvas({
   frame: FrameState;
   onFrameChange: (frame: FrameState) => void;
   crop: CropState;
-  uploadPreview: string | null;
+  capturedPreview: string | null;
+  imageSize: ImageSize | null;
 }) {
   const isContrast = template === 'contrast';
   const isHalo = template === 'halo';
@@ -739,8 +633,8 @@ function PreviewCanvas({
       const nextY = startFrame.y + ((moveEvent.clientY - startY) / canvasRect.height) * 100;
       onFrameChange({
         ...startFrame,
-        x: clamp(nextX, 30, 92),
-        y: clamp(nextY, 16, 86)
+        x: clamp(nextX, startFrame.width / 2 + 2, 98 - startFrame.width / 2),
+        y: clamp(nextY, startFrame.height / 2 + 4, 96 - startFrame.height / 2)
       });
     }
 
@@ -753,16 +647,26 @@ function PreviewCanvas({
     window.addEventListener('pointerup', stopFrameDrag);
   }
 
-  function handleFrameResize(event: PointerEvent<HTMLButtonElement>) {
+  function handleFrameResize(
+    event: PointerEvent<HTMLButtonElement>,
+    handle: FrameResizeHandle
+  ) {
     event.stopPropagation();
     const startX = event.clientX;
-    const startScale = frame.scale;
+    const startY = event.clientY;
+    const canvas = event.currentTarget.closest('[data-preview-canvas]');
+    const rect = canvas?.getBoundingClientRect();
+    if (!rect) {
+      return;
+    }
+
+    const canvasRect = rect;
+    const startFrame = frame;
 
     function resizeFrame(moveEvent: globalThis.PointerEvent) {
-      onFrameChange({
-        ...frame,
-        scale: clamp(startScale + (moveEvent.clientX - startX) / 360, 0.65, 1.35)
-      });
+      const deltaX = ((moveEvent.clientX - startX) / canvasRect.width) * 100;
+      const deltaY = ((moveEvent.clientY - startY) / canvasRect.height) * 100;
+      onFrameChange(resizeFrameByHandle(startFrame, handle, deltaX, deltaY));
     }
 
     function stopFrameResize() {
@@ -780,6 +684,7 @@ function PreviewCanvas({
         'relative aspect-[1200/630] min-h-[260px] overflow-hidden rounded-[14px] p-5 sm:p-8',
         isContrast ? 'bg-slate-950 text-white' : 'bg-white text-slate-950'
       )}
+      data-preview-canvas="true"
       style={{
         background: isContrast
           ? `radial-gradient(circle at 18% 18%, ${hexWithAlpha(brandColor, '4d')}, transparent 38%), radial-gradient(circle at 82% 24%, ${hexWithAlpha(accentColor, '42')}, transparent 34%), #09111f`
@@ -789,17 +694,7 @@ function PreviewCanvas({
       }}
     >
       <div className="absolute left-8 top-1/2 z-10 w-[34%] -translate-y-1/2 sm:left-10">
-        <div
-          className="inline-flex items-center gap-2 rounded-[12px] px-3 py-2 text-xs font-semibold"
-          style={{
-            backgroundColor: `${brandColor}20`,
-            color: isContrast ? '#ffffff' : brandColor
-          }}
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          LaunchFrames
-        </div>
-        <h3 className="mt-5 text-2xl font-semibold leading-tight sm:text-4xl">
+        <h3 className="text-2xl font-semibold leading-tight sm:text-4xl">
           {scene.headline}
         </h3>
         <p
@@ -813,40 +708,33 @@ function PreviewCanvas({
       </div>
 
       <div
-        className={cn(
-          'absolute z-20 cursor-move touch-none select-none',
-          getFramePreviewSize(scene.device)
-        )}
+        className="absolute z-20 cursor-move touch-none select-none"
         onPointerDown={handleFrameDrag}
         style={{
           left: `${frame.x}%`,
           top: `${frame.y}%`,
-          transform: `translate(-50%, -50%) scale(${frame.scale})`,
+          width: `${frame.width}%`,
+          height: `${frame.height}%`,
+          transform: 'translate(-50%, -50%)',
           transformOrigin: 'center'
         }}
       >
         <div
           className={cn(
-            'relative flex h-full w-full items-center justify-center overflow-hidden rounded-[18px] border p-px shadow-[0_26px_70px_-50px_rgba(15,23,42,0.55)]',
-            isContrast ? 'border-white/10 bg-white/8' : 'border-slate-200/45 bg-slate-950/80'
+            'relative flex h-full w-full items-center justify-center border shadow-[0_22px_55px_-46px_rgba(15,23,42,0.42)]',
+            isContrast ? 'border-white/12 bg-white/4' : 'border-slate-900/5 bg-transparent'
           )}
         >
-          {uploadPreview ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={uploadPreview}
-              alt=""
-              draggable={false}
-              className="h-full w-full rounded-[13px] object-contain"
-              style={{
-                transform: `translate(${crop.offsetX}%, ${crop.offsetY}%) scale(${crop.zoom})`,
-                transformOrigin: 'center'
-              }}
+          {capturedPreview ? (
+            <ImageFramePreview
+              src={capturedPreview}
+              crop={crop}
+              imageSize={imageSize}
+              frame={frame}
             />
           ) : previewUrl ? (
             <LiveAppPreview
               key={`${previewUrl}-${scene.device}`}
-              device={scene.device}
               sourceUrl={sourceUrl}
               previewUrl={previewUrl}
               crop={crop}
@@ -877,15 +765,14 @@ function PreviewCanvas({
             </div>
           )}
 
-          <button
-            type="button"
-            aria-label="Resize frame"
-            data-resize-handle="true"
-            onPointerDown={handleFrameResize}
-            className="absolute bottom-2 right-2 h-5 w-5 cursor-nwse-resize rounded-[6px] border border-white/60 bg-black/35 shadow-sm"
-          >
-            <span className="sr-only">Resize frame</span>
-          </button>
+          <FrameResizeButton handle="top" onPointerDown={handleFrameResize} />
+          <FrameResizeButton handle="right" onPointerDown={handleFrameResize} />
+          <FrameResizeButton handle="bottom" onPointerDown={handleFrameResize} />
+          <FrameResizeButton handle="left" onPointerDown={handleFrameResize} />
+          <FrameResizeButton handle="top-left" onPointerDown={handleFrameResize} />
+          <FrameResizeButton handle="top-right" onPointerDown={handleFrameResize} />
+          <FrameResizeButton handle="bottom-right" onPointerDown={handleFrameResize} />
+          <FrameResizeButton handle="bottom-left" onPointerDown={handleFrameResize} />
           </div>
         </div>
     </div>
@@ -893,51 +780,267 @@ function PreviewCanvas({
 }
 
 function LiveAppPreview({
-  device,
   sourceUrl,
   previewUrl,
   crop
 }: {
-  device: Scene['device'];
   sourceUrl: string;
   previewUrl: string;
   crop: CropState;
 }) {
-  const viewport =
-    device === 'phone'
-      ? { width: 390, height: 844, scale: 0.66 }
-      : device === 'tablet'
-        ? { width: 820, height: 1180, scale: 0.46 }
-        : { width: 1280, height: 800, scale: 0.52 };
+  const viewportZoom = Math.max(crop.viewportZoom, 0.1);
+  const featureZoom = Math.max(crop.featureZoom, 1);
+  const maxFeatureShift = (featureZoom - 1) * 50;
+  const featurePanLimit = getFeaturePanLimit(featureZoom);
+  const featureShiftX = getEdgeMappedShift(crop.featureOffsetX, featurePanLimit, maxFeatureShift);
+  const featureShiftY = getEdgeMappedShift(crop.featureOffsetY, featurePanLimit, maxFeatureShift);
+  const viewportSize = `${100 / viewportZoom}%`;
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-[13px] bg-white">
-      <iframe
-        title={`${URLSafeHost(sourceUrl)} live preview`}
-        src={previewUrl}
-        className="absolute left-1/2 top-1/2 max-w-none border-0 bg-white"
-        referrerPolicy="no-referrer"
-        style={{
-          width: viewport.width,
-          height: viewport.height,
-          transform: `translate(calc(-50% + ${crop.offsetX * 4}px), calc(-50% + ${crop.offsetY * 3}px)) scale(${viewport.scale * crop.zoom})`,
-          transformOrigin: 'center'
-        }}
-      />
+    <div
+      className="relative h-full w-full overflow-hidden bg-white"
+      style={{ borderRadius: crop.appRadius, padding: APP_PREVIEW_INSET }}
+    >
+      <div
+        className="relative h-full w-full overflow-hidden bg-white"
+        style={{ borderRadius: Math.max(0, crop.appRadius - APP_PREVIEW_INSET) }}
+      >
+        <div
+          className="absolute inset-0"
+          style={{
+            transform: `translate(${featureShiftX}%, ${featureShiftY}%) scale(${featureZoom})`,
+            transformOrigin: 'center'
+          }}
+        >
+          <iframe
+            title={`${URLSafeHost(sourceUrl)} live preview`}
+            src={previewUrl}
+            className="absolute left-0 top-0 max-w-none border-0 bg-white"
+            referrerPolicy="no-referrer"
+            style={{
+              width: viewportSize,
+              height: viewportSize,
+              transform: `scale(${viewportZoom})`,
+              transformOrigin: 'top left'
+            }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
 
-function getFramePreviewSize(device: Scene['device']) {
-  if (device === 'phone') {
-    return 'h-[78%] aspect-[9/18]';
+function ImageFramePreview({
+  src,
+  crop,
+  imageSize,
+  frame
+}: {
+  src: string;
+  crop: CropState;
+  imageSize: ImageSize | null;
+  frame: FrameState;
+}) {
+  const fallbackSize = { width: 1440, height: 1000 };
+  const source = imageSize ?? fallbackSize;
+  const frameAspect = (frame.width / frame.height) * (1200 / 630);
+  const imageAspect = source.width / source.height;
+  const containSize =
+    imageAspect > frameAspect
+      ? { width: 100, height: (frameAspect / imageAspect) * 100 }
+      : { width: (imageAspect / frameAspect) * 100, height: 100 };
+  const width = containSize.width * crop.viewportZoom * crop.featureZoom;
+  const height = containSize.height * crop.viewportZoom * crop.featureZoom;
+  const maxShiftX = getImageEdgeShift(width);
+  const maxShiftY = getImageEdgeShift(height);
+  const featurePanLimit = getFeaturePanLimit(crop.featureZoom);
+  const featureShiftX = getEdgeMappedShift(crop.featureOffsetX, featurePanLimit, maxShiftX);
+  const featureShiftY = getEdgeMappedShift(crop.featureOffsetY, featurePanLimit, maxShiftY);
+
+  return (
+    <div
+      className="relative h-full w-full overflow-hidden bg-white"
+      style={{ borderRadius: crop.appRadius, padding: APP_PREVIEW_INSET }}
+    >
+      <div
+        className="relative h-full w-full overflow-hidden bg-white"
+        style={{ borderRadius: Math.max(0, crop.appRadius - APP_PREVIEW_INSET) }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt=""
+          draggable={false}
+          className="absolute left-1/2 top-1/2 max-w-none select-none"
+          style={{
+            width: `${width}%`,
+            height: `${height}%`,
+            transform: `translate(calc(-50% + ${featureShiftX}%), calc(-50% + ${featureShiftY}%))`,
+            objectFit: 'fill'
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function FrameResizeButton({
+  handle,
+  onPointerDown
+}: {
+  handle: FrameResizeHandle;
+  onPointerDown: (
+    event: PointerEvent<HTMLButtonElement>,
+    handle: FrameResizeHandle
+  ) => void;
+}) {
+  const isCorner = handle.includes('-');
+  const classNameByHandle: Record<FrameResizeHandle, string> = {
+    top: 'left-4 right-4 top-[-7px] h-3 cursor-ns-resize',
+    right: 'bottom-4 right-[-7px] top-4 w-3 cursor-ew-resize',
+    bottom: 'bottom-[-7px] left-4 right-4 h-3 cursor-ns-resize',
+    left: 'bottom-4 left-[-7px] top-4 w-3 cursor-ew-resize',
+    'top-left': 'left-[-8px] top-[-8px] h-4 w-4 cursor-nwse-resize',
+    'top-right': 'right-[-8px] top-[-8px] h-4 w-4 cursor-nesw-resize',
+    'bottom-right': 'bottom-[-8px] right-[-8px] h-4 w-4 cursor-nwse-resize',
+    'bottom-left': 'bottom-[-8px] left-[-8px] h-4 w-4 cursor-nesw-resize'
+  };
+
+  return (
+    <button
+      type="button"
+      aria-label={`Resize frame ${handle}`}
+      data-resize-handle="true"
+      onPointerDown={(event) => onPointerDown(event, handle)}
+      className={cn(
+        'absolute z-30 touch-none',
+        classNameByHandle[handle],
+        isCorner &&
+          'rounded-[5px] border border-white/70 bg-black/35 opacity-80 shadow-sm'
+      )}
+    >
+      <span className="sr-only">Resize frame {handle}</span>
+    </button>
+  );
+}
+
+function resizeFrameByHandle(
+  frame: FrameState,
+  handle: FrameResizeHandle,
+  deltaX: number,
+  deltaY: number
+) {
+  let left = frame.x - frame.width / 2;
+  let right = frame.x + frame.width / 2;
+  let top = frame.y - frame.height / 2;
+  let bottom = frame.y + frame.height / 2;
+
+  if (handle.includes('left')) {
+    left += deltaX;
   }
 
-  if (device === 'tablet') {
-    return 'h-[78%] aspect-[4/3]';
+  if (handle.includes('right')) {
+    right += deltaX;
   }
 
-  return 'w-[58%] aspect-[16/10]';
+  if (handle.includes('top')) {
+    top += deltaY;
+  }
+
+  if (handle.includes('bottom')) {
+    bottom += deltaY;
+  }
+
+  const minWidth = 18;
+  const minHeight = 22;
+  const maxWidth = 78;
+  const maxHeight = 88;
+
+  if (right - left < minWidth) {
+    if (handle.includes('left')) {
+      left = right - minWidth;
+    } else {
+      right = left + minWidth;
+    }
+  }
+
+  if (bottom - top < minHeight) {
+    if (handle.includes('top')) {
+      top = bottom - minHeight;
+    } else {
+      bottom = top + minHeight;
+    }
+  }
+
+  if (right - left > maxWidth) {
+    if (handle.includes('left')) {
+      left = right - maxWidth;
+    } else {
+      right = left + maxWidth;
+    }
+  }
+
+  if (bottom - top > maxHeight) {
+    if (handle.includes('top')) {
+      top = bottom - maxHeight;
+    } else {
+      bottom = top + maxHeight;
+    }
+  }
+
+  left = clamp(left, 2, 98 - minWidth);
+  right = clamp(right, left + minWidth, 98);
+  top = clamp(top, 4, 96 - minHeight);
+  bottom = clamp(bottom, top + minHeight, 96);
+
+  return {
+    x: (left + right) / 2,
+    y: (top + bottom) / 2,
+    width: right - left,
+    height: bottom - top
+  };
+}
+
+function getFeaturePanLimit(featureZoom: number) {
+  return Math.round(((Math.max(featureZoom, 1) - 1) / Math.max(featureZoom, 1)) * 100);
+}
+
+function getImageFeaturePanLimit(
+  crop: CropState,
+  frame: FrameState,
+  imageSize: ImageSize | null,
+  axis: 'x' | 'y'
+) {
+  const fallbackSize = { width: 1440, height: 1000 };
+  const source = imageSize ?? fallbackSize;
+  const frameAspect = (frame.width / frame.height) * (1200 / 630);
+  const imageAspect = source.width / source.height;
+  const containSize =
+    imageAspect > frameAspect
+      ? { width: 100, height: (frameAspect / imageAspect) * 100 }
+      : { width: (imageAspect / frameAspect) * 100, height: 100 };
+  const renderedSize =
+    (axis === 'x' ? containSize.width : containSize.height) *
+    crop.viewportZoom *
+    crop.featureZoom;
+
+  return renderedSize > 100 ? getFeaturePanLimit(crop.featureZoom) : 0;
+}
+
+function getImageEdgeShift(renderedSize: number) {
+  if (renderedSize <= 100) {
+    return 0;
+  }
+
+  return ((renderedSize - 100) / (2 * renderedSize)) * 100;
+}
+
+function getEdgeMappedShift(value: number, limit: number, maxShift: number) {
+  if (limit <= 0 || maxShift <= 0) {
+    return 0;
+  }
+
+  return (clamp(value, -limit, limit) / limit) * maxShift;
 }
 
 function CanvasSlider({
@@ -1043,15 +1146,6 @@ async function renderPreviewPng({
     drawBlurredCircle(context, 1690, 1040, 360, 120, withAlpha(brandColor, contrast ? 0.16 : 0.05));
   }
 
-  roundRect(context, 160, 180, 380, 84, 28);
-  context.fillStyle = withAlpha(brandColor, 0.16);
-  context.fill();
-  drawText(context, 'LaunchFrames', 208, 234, {
-    color: foreground,
-    size: 36,
-    weight: 800
-  });
-
   drawWrappedText(context, scene.headline, 164, 390, 820, 3, {
     color: foreground,
     size: 92,
@@ -1069,9 +1163,8 @@ async function renderPreviewPng({
   context.shadowColor = 'rgba(2, 6, 23, 0.18)';
   context.shadowBlur = 52;
   context.shadowOffsetY = 36;
-  roundRect(context, exportFrame.x, exportFrame.y, exportFrame.width, exportFrame.height, 48);
-  context.fillStyle = contrast ? 'rgba(255,255,255,0.14)' : '#020617';
-  context.fill();
+  context.fillStyle = '#ffffff';
+  context.fillRect(exportFrame.x, exportFrame.y, exportFrame.width, exportFrame.height);
   context.restore();
 
   const bezel = 3;
@@ -1081,37 +1174,40 @@ async function renderPreviewPng({
     width: exportFrame.width - bezel * 2,
     height: exportFrame.height - bezel * 2
   };
+  const screenRadius = crop.appRadius * 2;
+  const contentInset = APP_PREVIEW_INSET * 2;
+  const contentScreen = {
+    x: screen.x + contentInset,
+    y: screen.y + contentInset,
+    width: screen.width - contentInset * 2,
+    height: screen.height - contentInset * 2
+  };
 
   context.save();
-  roundRect(context, screen.x, screen.y, screen.width, screen.height, 34);
+  roundRect(context, screen.x, screen.y, screen.width, screen.height, screenRadius);
   context.clip();
+  context.fillStyle = '#ffffff';
+  context.fillRect(screen.x, screen.y, screen.width, screen.height);
 
   if (imageSource) {
     const image = await loadImage(imageSource);
-    drawCroppedImage(context, image, screen, crop);
+    drawImageInFrame(context, image, contentScreen, crop);
   } else {
-    drawMockScreen(context, screen, brandColor);
+    drawMockScreen(context, contentScreen, brandColor);
   }
 
   context.restore();
 
-  roundRect(context, exportFrame.x, exportFrame.y, exportFrame.width, exportFrame.height, 48);
-  context.strokeStyle = contrast ? 'rgba(255,255,255,0.10)' : 'rgba(226,232,240,0.52)';
+  context.strokeStyle = contrast ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.05)';
   context.lineWidth = 2;
-  context.stroke();
+  context.strokeRect(exportFrame.x, exportFrame.y, exportFrame.width, exportFrame.height);
 
   return canvasToBlob(canvas);
 }
 
-function getExportFrame(device: Scene['device'], frame: FrameState) {
-  const base =
-    device === 'phone'
-      ? { width: 430, height: 950 }
-      : device === 'tablet'
-        ? { width: 740, height: 940 }
-        : { width: 1120, height: 700 };
-  const width = base.width * frame.scale;
-  const height = base.height * frame.scale;
+function getExportFrame(_device: Scene['device'], frame: FrameState) {
+  const width = (frame.width / 100) * 2400;
+  const height = (frame.height / 100) * 1260;
   const centerX = (frame.x / 100) * 2400;
   const centerY = (frame.y / 100) * 1260;
 
@@ -1123,21 +1219,26 @@ function getExportFrame(device: Scene['device'], frame: FrameState) {
   };
 }
 
-function drawCroppedImage(
+function drawImageInFrame(
   context: CanvasRenderingContext2D,
   image: HTMLImageElement,
   screen: { x: number; y: number; width: number; height: number },
   crop: CropState
 ) {
   const baseScale = Math.min(screen.width / image.naturalWidth, screen.height / image.naturalHeight);
-  const scale = baseScale * crop.zoom;
+  const scale = baseScale * crop.viewportZoom * crop.featureZoom;
   const width = image.naturalWidth * scale;
   const height = image.naturalHeight * scale;
   const maxMoveX = Math.max(0, (width - screen.width) / 2);
   const maxMoveY = Math.max(0, (height - screen.height) / 2);
-  const x = screen.x + (screen.width - width) / 2 + (crop.offsetX / 40) * maxMoveX;
-  const y = screen.y + (screen.height - height) / 2 + (crop.offsetY / 40) * maxMoveY;
+  const featurePanLimit = getFeaturePanLimit(crop.featureZoom);
+  const shiftX = getEdgeMappedShift(crop.featureOffsetX, featurePanLimit, maxMoveX);
+  const shiftY = getEdgeMappedShift(crop.featureOffsetY, featurePanLimit, maxMoveY);
+  const x = screen.x + (screen.width - width) / 2 + shiftX;
+  const y = screen.y + (screen.height - height) / 2 + shiftY;
 
+  context.fillStyle = '#ffffff';
+  context.fillRect(screen.x, screen.y, screen.width, screen.height);
   context.drawImage(image, x, y, width, height);
 }
 
@@ -1273,6 +1374,14 @@ function loadImage(src: string) {
     image.onerror = () => reject(new Error('Image could not be loaded.'));
     image.src = src;
   });
+}
+
+async function getImageSize(src: string) {
+  const image = await loadImage(src);
+  return {
+    width: image.naturalWidth,
+    height: image.naturalHeight
+  };
 }
 
 function canvasToBlob(canvas: HTMLCanvasElement) {
