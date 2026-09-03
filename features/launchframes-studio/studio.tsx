@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type PointerEvent } from 'react';
+import { useMemo, useState, type CSSProperties, type PointerEvent } from 'react';
 import {
   Aperture,
   Check,
@@ -57,6 +57,14 @@ type FrameResizeHandle =
 type ImageSize = {
   width: number;
   height: number;
+};
+
+type TextLayout = {
+  placement: 'left' | 'right' | 'top' | 'bottom';
+  left: number;
+  top: number;
+  width: number;
+  transform: string;
 };
 
 const packOptions = [
@@ -137,7 +145,7 @@ export function LaunchFramesStudio({
   const [captureState, setCaptureState] = useState<'idle' | 'capturing' | 'error'>('idle');
   const [exportState, setExportState] = useState<'idle' | 'exporting' | 'ready' | 'error'>('idle');
 
-  const selectedScene = scenes[0];
+  const selectedScene = scenes[0] ?? initialScenes[0];
   const selectedPackConfig =
     packOptions.find((pack) => pack.id === selectedPack) ?? packOptions[0];
   const normalizedSourceUrl = normalizeSourceUrl(sourceUrl);
@@ -610,6 +618,19 @@ function PreviewCanvas({
 }) {
   const isContrast = template === 'contrast';
   const isHalo = template === 'halo';
+  const textLayout = getTextLayout(frame);
+  const textStyle: CSSProperties = {
+    left: `${textLayout.left}%`,
+    top: `${textLayout.top}%`,
+    width: `${textLayout.width}%`,
+    transform: textLayout.transform,
+    textAlign:
+      textLayout.placement === 'right'
+        ? 'left'
+        : textLayout.placement === 'left'
+          ? 'right'
+          : 'center'
+  };
 
   function handleFrameDrag(event: PointerEvent<HTMLDivElement>) {
     if ((event.target as HTMLElement).dataset.resizeHandle) {
@@ -693,13 +714,13 @@ function PreviewCanvas({
             : '#ffffff'
       }}
     >
-      <div className="absolute left-8 top-1/2 z-10 w-[34%] -translate-y-1/2 sm:left-10">
-        <h3 className="text-2xl font-semibold leading-tight sm:text-4xl">
+      <div className="absolute z-10 break-words" style={textStyle}>
+        <h3 className="text-xl font-semibold leading-tight sm:text-3xl 2xl:text-4xl">
           {scene.headline}
         </h3>
         <p
           className={cn(
-            'mt-8 text-sm leading-6 sm:text-base',
+            'mt-5 text-sm leading-6 sm:text-base',
             isContrast ? 'text-slate-300' : 'text-slate-600'
           )}
         >
@@ -1106,6 +1127,62 @@ function normalizeSourceUrl(value: string) {
   }
 }
 
+function getTextLayout(frame: FrameState): TextLayout {
+  const edge = 5;
+  const gap = 4;
+  const minSideWidth = 22;
+  const maxSideWidth = 34;
+  const maxStackWidth = 72;
+  const frameLeft = frame.x - frame.width / 2;
+  const frameRight = frame.x + frame.width / 2;
+  const frameTop = frame.y - frame.height / 2;
+  const frameBottom = frame.y + frame.height / 2;
+  const leftSpace = Math.max(0, frameLeft - gap - edge);
+  const rightSpace = Math.max(0, 100 - frameRight - gap - edge);
+
+  if (Math.max(leftSpace, rightSpace) >= minSideWidth) {
+    if (rightSpace >= leftSpace) {
+      return {
+        placement: 'right',
+        left: clamp(frameRight + gap, edge, 100 - edge),
+        top: 50,
+        width: clamp(rightSpace, minSideWidth, maxSideWidth),
+        transform: 'translateY(-50%)'
+      };
+    }
+
+    return {
+      placement: 'left',
+      left: clamp(frameLeft - gap, edge, 100 - edge),
+      top: 50,
+      width: clamp(leftSpace, minSideWidth, maxSideWidth),
+      transform: 'translate(-100%, -50%)'
+    };
+  }
+
+  const topSpace = Math.max(0, frameTop - gap - edge);
+  const bottomSpace = Math.max(0, 100 - frameBottom - gap - edge);
+  const stackWidth = clamp(100 - edge * 2, minSideWidth, maxStackWidth);
+
+  if (bottomSpace >= topSpace) {
+    return {
+      placement: 'bottom',
+      left: 50,
+      top: clamp(frameBottom + gap, edge, 100 - edge),
+      width: stackWidth,
+      transform: 'translateX(-50%)'
+    };
+  }
+
+  return {
+    placement: 'top',
+    left: 50,
+    top: clamp(frameTop - gap, edge, 100 - edge),
+    width: stackWidth,
+    transform: 'translate(-50%, -100%)'
+  };
+}
+
 async function renderPreviewPng({
   scene,
   template,
@@ -1137,6 +1214,28 @@ async function renderPreviewPng({
   const foreground = contrast ? '#ffffff' : '#0f172a';
   const muted = contrast ? '#cbd5e1' : '#475569';
   const background = contrast ? '#09111f' : '#ffffff';
+  const textLayout = getTextLayout(frame);
+  const headlineSize = textLayout.placement === 'top' || textLayout.placement === 'bottom' ? 76 : 88;
+  const headlineLineHeight = textLayout.placement === 'top' || textLayout.placement === 'bottom' ? 86 : 100;
+  const sublineSize = textLayout.placement === 'top' || textLayout.placement === 'bottom' ? 36 : 40;
+  const sublineLineHeight = textLayout.placement === 'top' || textLayout.placement === 'bottom' ? 50 : 56;
+  const textBox = {
+    x: (textLayout.left / 100) * canvas.width,
+    y: (textLayout.top / 100) * canvas.height,
+    width: (textLayout.width / 100) * canvas.width
+  };
+  const textOriginX =
+    textLayout.placement === 'left'
+      ? textBox.x - textBox.width
+      : textLayout.placement === 'top' || textLayout.placement === 'bottom'
+        ? textBox.x - textBox.width / 2
+        : textBox.x;
+  const textOriginY =
+    textLayout.placement === 'left' || textLayout.placement === 'right'
+      ? textBox.y - 160
+      : textLayout.placement === 'top'
+        ? textBox.y - 250
+        : textBox.y;
 
   context.fillStyle = background;
   context.fillRect(0, 0, canvas.width, canvas.height);
@@ -1146,17 +1245,29 @@ async function renderPreviewPng({
     drawBlurredCircle(context, 1690, 1040, 360, 120, withAlpha(brandColor, contrast ? 0.16 : 0.05));
   }
 
-  drawWrappedText(context, scene.headline, 164, 390, 820, 3, {
+  drawWrappedText(context, scene.headline, textOriginX, textOriginY, textBox.width, 3, {
     color: foreground,
-    size: 92,
-    lineHeight: 104,
-    weight: 850
+    size: headlineSize,
+    lineHeight: headlineLineHeight,
+    weight: 850,
+    align:
+      textLayout.placement === 'left'
+        ? 'right'
+        : textLayout.placement === 'right'
+          ? 'left'
+          : 'center'
   });
-  drawWrappedText(context, scene.subline, 168, 740, 760, 2, {
+  drawWrappedText(context, scene.subline, textOriginX, textOriginY + headlineLineHeight * 3 + 52, textBox.width, 2, {
     color: muted,
-    size: 42,
-    lineHeight: 58,
-    weight: 500
+    size: sublineSize,
+    lineHeight: sublineLineHeight,
+    weight: 500,
+    align:
+      textLayout.placement === 'left'
+        ? 'right'
+        : textLayout.placement === 'right'
+          ? 'left'
+          : 'center'
   });
   const exportFrame = getExportFrame(scene.device, frame);
   context.save();
@@ -1289,18 +1400,6 @@ function drawBlurredCircle(
   context.restore();
 }
 
-function drawText(
-  context: CanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  options: { color: string; size: number; weight: number }
-) {
-  context.fillStyle = options.color;
-  context.font = `${options.weight} ${options.size}px Manrope, Inter, Arial, sans-serif`;
-  context.fillText(text, x, y);
-}
-
 function drawWrappedText(
   context: CanvasRenderingContext2D,
   text: string,
@@ -1308,10 +1407,23 @@ function drawWrappedText(
   y: number,
   maxWidth: number,
   maxLines: number,
-  options: { color: string; size: number; lineHeight: number; weight: number }
+  options: {
+    color: string;
+    size: number;
+    lineHeight: number;
+    weight: number;
+    align?: CanvasTextAlign;
+  }
 ) {
   context.fillStyle = options.color;
   context.font = `${options.weight} ${options.size}px Manrope, Inter, Arial, sans-serif`;
+  context.textAlign = options.align ?? 'left';
+  const lineX =
+    options.align === 'center'
+      ? x + maxWidth / 2
+      : options.align === 'right'
+        ? x + maxWidth
+        : x;
 
   const words = text.split(/\s+/);
   const lines: string[] = [];
@@ -1332,8 +1444,9 @@ function drawWrappedText(
   }
 
   lines.slice(0, maxLines).forEach((line, index) => {
-    context.fillText(line, x, y + index * options.lineHeight);
+    context.fillText(line, lineX, y + index * options.lineHeight);
   });
+  context.textAlign = 'left';
 }
 
 function roundRect(
