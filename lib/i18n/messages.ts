@@ -37,10 +37,22 @@ const messages = {
       productPreviewBody:
         'Ein schneller Workflow für App Store, Google Play, Microsoft Store und Social Cards mit guten Defaults statt leerer Leinwand.',
       productPreviewList: [
-        'URL-Capture oder Screenshot-Upload',
-        'Store-Presets mit passenden Maßen',
-        'Export als einzelnes PNG oder Pack'
+        'Export als PNG oder JPEG mit sauber gerenderten Dateien',
+        'Preset-Canvas für Social Card, App Store, Google Play und Microsoft Store',
+        'Metadaten aus Quellbildern werden nicht in den finalen Export übernommen'
       ],
+      workflowCapture: {
+        title: 'Quelle laden',
+        body: 'Nutze eine öffentliche App-URL als Live-Vorschau und bereite daraus den späteren Export vor.'
+      },
+      workflowCompose: {
+        title: 'Asset bauen',
+        body: 'Positioniere das App-Fenster, wähle Hintergrund und Text und zoome gezielt in wichtige Features.'
+      },
+      workflowExport: {
+        title: 'Export prüfen',
+        body: 'Öffne die echte Export-Vorschau, passe den Dateinamen an und lade PNG oder JPEG herunter.'
+      },
       featureTitle1: 'Live Capture',
       featureBody1:
         'Nimm öffentliche Demo-URLs in festen Viewports auf und verwandle echte App-Zustände in Marketingbilder.',
@@ -50,6 +62,10 @@ const messages = {
       featureTitle3: 'Wiederholbare Packs',
       featureBody3:
         'Speichere Szenen und regeneriere konsistente Assets, wenn sich deine App-Oberfläche ändert.',
+      featureTitle4: 'Cleaner Export',
+      featureBody4:
+        'Exports werden neu gerendert, damit EXIF-, C2PA- und Upload-Metadaten aus Quellbildern nicht im Ergebnis landen.',
+      exportTitle: 'Sieh vor dem Download, was du veröffentlichst.',
       pricingBadge: 'Einfache Preise',
       pricingTitle: 'Kostenlos testen. Upgraden, wenn LaunchFrames Zeit spart.',
       pricingDescription:
@@ -453,10 +469,22 @@ const messages = {
       productPreviewBody:
         'A fast path for App Store, Google Play, Microsoft Store, and social cards with strong defaults instead of a blank canvas.',
       productPreviewList: [
-        'URL capture or screenshot upload',
-        'Store presets with correct dimensions',
-        'Export as one PNG or a full pack'
+        'Export as PNG or JPEG with cleanly rendered files',
+        'Preset canvases for social cards, App Store, Google Play, and Microsoft Store',
+        'Metadata from source images is not carried into the final export'
       ],
+      workflowCapture: {
+        title: 'Load source',
+        body: 'Use a public app URL as a live preview and prepare it for the final export.'
+      },
+      workflowCompose: {
+        title: 'Compose asset',
+        body: 'Place the app frame, choose background and copy, and zoom into the feature that matters.'
+      },
+      workflowExport: {
+        title: 'Review export',
+        body: 'Open the real export preview, adjust the file name, and download PNG or JPEG.'
+      },
       featureTitle1: 'Live Capture',
       featureBody1:
         'Capture public demo URLs in fixed viewports and turn real app states into marketing images.',
@@ -466,6 +494,10 @@ const messages = {
       featureTitle3: 'Repeatable Packs',
       featureBody3:
         'Save scenes and regenerate consistent assets whenever your app UI changes.',
+      featureTitle4: 'Clean Export',
+      featureBody4:
+        'Exports are rendered again so EXIF, C2PA, and upload metadata from source images do not end up in the result.',
+      exportTitle: 'See exactly what you publish before downloading.',
       pricingBadge: 'Simple pricing',
       pricingTitle: 'Start free. Upgrade when LaunchFrames saves real time.',
       pricingDescription:
@@ -614,78 +646,98 @@ const messages = {
       }
     },
     faq: {
-      eyebrow: 'Frequently asked questions',
-      title: 'Answers to the questions that matter before getting started.',
+      eyebrow: 'FAQ',
+      title: 'Questions about LaunchFrames.',
       intro:
-        'Short, clear, and without filler. This page covers the points people usually want to understand before signing up, testing the product, or upgrading.',
-      badgePrimary: 'Fast answers',
-      badgeSecondary: 'No support ticket needed',
+        'Short and concrete: what LaunchFrames does, how export works, and what to watch when preparing store assets.',
+      badgePrimary: 'Launch assets',
+      badgeSecondary: 'Export and privacy',
       sections: [
         {
-          title: 'Product and access',
+          title: 'Product and workflow',
           items: [
             {
-              question: 'Can I try the product before paying?',
+              question: 'What is LaunchFrames?',
               answer:
-                'Yes. The onboarding path is intentionally lightweight so you can evaluate the product in a real workflow before an upgrade becomes relevant.'
+                'LaunchFrames is a studio for app screenshots and launch assets. Add an app URL, place the interface on a canvas, write a headline and subline, then export finished images for stores, social media, or landing pages.'
             },
             {
-              question: 'Do I need a team or multiple users right away?',
+              question: 'Who is it for?',
               answer:
-                'No. You can start solo and invite more people later once your workflow is stable or collaboration actually matters.'
+                'It is made for developers, indie hackers, and small product teams that want polished assets from real app screens without rebuilding every format manually in a design tool.'
             },
             {
-              question: 'Can I upgrade to a paid plan later?',
+              question: 'Can I use a real website or app as the source?',
               answer:
-                'Yes. The upgrade path is designed to stay simple so you only pay once usage becomes regular or you need higher limits.'
+                'Yes. Public URLs can be loaded as a preview and captured for export. Local or protected apps are better handled later through uploads or a dedicated capture integration.'
             }
           ]
         },
         {
-          title: 'Billing and privacy',
+          title: 'Canvas and design',
           items: [
             {
-              question: 'What happens to my data if I cancel?',
+              question: 'Why use a canvas instead of a simple screenshot download?',
               answer:
-                'Access and data handling should stay predictable. The legal details are covered in the privacy policy and terms linked in the footer.'
+                'The canvas mirrors the final export format. That means you see how text, background, and the app frame fit together before downloading the asset.'
             },
             {
-              question: 'Will I be charged if I barely use the product?',
+              question: 'What is the difference between viewport zoom and feature zoom?',
               answer:
-                'The product is structured around a clear free-to-upgrade path so costs should only appear once the value and usage justify them.'
+                'Viewport zoom changes how the loaded app is rendered inside the simulated browser. Feature zoom then zooms into the app without changing the app frame itself, so you can highlight details without breaking the asset layout.'
             },
             {
-              question: 'Is Stripe required for payments?',
+              question: 'Can text end up behind the app?',
               answer:
-                'For real billing, yes. During development, billing can still run in mock mode so product work is not blocked by early Stripe setup.'
+                'The text area automatically moves into free space beside, above, or below the app. You can still tune size, spacing, alignment, and small offsets without letting the copy disappear behind the app frame.'
             }
           ]
         },
         {
-          title: 'Technical setup',
+          title: 'Export and platforms',
           items: [
             {
-              question: 'Do I need my own database in production?',
+              question: 'Which export formats are supported?',
               answer:
-                'Yes. The app runs separately from the database. In production you connect an external Postgres database, while locally you can use Docker or a hosted test database.'
+                'Exports support PNG and JPEG. PNG is the default because UI, text, and thin lines stay lossless. JPEG is useful when file size matters more and transparency is not needed.'
             },
             {
-              question: 'Is this better suited for MVPs or real customers?',
+              question: 'Do EXIF, C2PA, or upload metadata stay in the export?',
               answer:
-                'Both. The setup is lean enough for fast validation, but structured enough to keep evolving into a real SaaS used by actual customers.'
+                'No. The final image is rendered again, so metadata from uploaded or captured source images is not carried into the exported file.'
             },
             {
-              question: 'How quickly can I get into the dashboard?',
+              question: 'Does LaunchFrames already validate every store rule?',
               answer:
-                'As soon as your account exists, you can move straight into the protected area. Navigation and data loading are designed to keep that path smooth.'
+                'Not completely yet. The main preset sizes are in place. Checks for maximum file size, allowed aspect ratios, and platform-specific warnings can be added once the store requirements are fully collected.'
+            }
+          ]
+        },
+        {
+          title: 'Status and privacy',
+          items: [
+            {
+              question: 'Is LaunchFrames already a finished product?',
+              answer:
+                'LaunchFrames is currently an MVP. The first focus is a strong studio experience: real preview, direct adjustment, clean exports, and good defaults.'
+            },
+            {
+              question: 'Are my app screens stored permanently?',
+              answer:
+                'The current MVP is built around direct preview and export. If projects, uploads, or team features are stored permanently later, that should be clear in the product, privacy policy, and account settings.'
+            },
+            {
+              question: 'What is Arratel?',
+              answer:
+                'Arratel is the umbrella brand behind LaunchFrames. LaunchFrames is the current product name for this screenshot and launch asset studio.'
             }
           ]
         }
       ],
       supportTitle: 'Still missing an answer?',
       supportBody:
-        'If something important is still unclear before sign-up or upgrade, it should probably live on this page. That is usually a content gap, not a user problem.',
-      supportPrimary: 'View pricing',
+        'If something is missing while creating your first launch asset, it is probably a good candidate for the next product iteration.',
+      supportPrimary: 'Open studio',
       supportSecondary: 'Back home'
     },
     auth: {

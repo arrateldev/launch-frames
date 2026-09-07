@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { chromium, devices } from 'playwright';
+import serverlessChromium from '@sparticuz/chromium';
+import { chromium, devices, type Browser } from 'playwright';
 
 type CaptureDevice = 'desktop' | 'phone' | 'tablet';
 
@@ -13,9 +14,10 @@ const viewportByDevice = {
 >;
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
-  let browser;
+  let browser: Browser | undefined;
 
   try {
     const body = await request.json();
@@ -40,7 +42,7 @@ export async function POST(request: Request) {
       viewportWidth,
       viewportHeight
     );
-    browser = await chromium.launch({ headless: true });
+    browser = await launchChromium();
     const context = await browser.newContext({
       ...(device === 'phone' ? devices['iPhone 15'] : {}),
       viewport: {
@@ -51,19 +53,32 @@ export async function POST(request: Request) {
     });
     const page = await context.newPage();
 
-    await page.goto(sourceUrl, {
-      waitUntil: 'networkidle',
-      timeout: 30000
+    const response = await page.goto(sourceUrl, {
+      waitUntil: 'domcontentloaded',
+      timeout: 45000
     });
 
+    if (!response || response.status() >= 400) {
+      return NextResponse.json(
+        { error: 'The URL returned an error status.' },
+        { status: 502 }
+      );
+    }
+
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.waitForTimeout(500);
+    await Promise.race([
+      page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => null),
+      page.waitForTimeout(1200)
+    ]);
+    await page.evaluate(async () => {
+      await document.fonts?.ready;
+    }).catch(() => null);
 
     const screenshot = await page.screenshot({
       type: 'png'
     });
 
-    return new NextResponse(new Blob([new Uint8Array(screenshot)]), {
+    return new NextResponse(new Uint8Array(screenshot), {
       headers: {
         'Cache-Control': 'no-store',
         'Content-Type': 'image/png'
@@ -78,6 +93,26 @@ export async function POST(request: Request) {
   } finally {
     await browser?.close();
   }
+}
+
+async function launchChromium() {
+  const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  const executablePath = isVercel
+    ? await serverlessChromium.executablePath()
+    : process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+
+  return chromium.launch({
+    args: isVercel
+      ? [
+          ...serverlessChromium.args,
+          '--hide-scrollbars',
+          '--no-sandbox',
+          '--disable-setuid-sandbox'
+        ]
+      : undefined,
+    executablePath,
+    headless: true
+  });
 }
 
 function getCaptureViewport(

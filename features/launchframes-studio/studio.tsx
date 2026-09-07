@@ -607,9 +607,8 @@ export function LaunchFramesStudio({
   }
 
   return (
-    <main className="min-h-[calc(100vh-4rem)] bg-background text-foreground">
-      <section className="min-h-[calc(100vh-4rem)] border-b border-border/60 bg-[linear-gradient(180deg,hsl(var(--background)),hsl(var(--secondary)))]">
-        <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[1800px] px-3 py-3 sm:px-5 2xl:px-8">
+    <section className="h-[calc(100vh-4rem)] scroll-mt-16 snap-start overflow-hidden border-b border-border/60 bg-[linear-gradient(180deg,hsl(var(--background)),hsl(var(--secondary)))] text-foreground">
+      <div className="mx-auto flex h-full w-full max-w-[1800px] px-3 py-3 sm:px-5 2xl:px-8">
           <div className="grid min-h-0 w-full gap-4 xl:grid-cols-[340px_minmax(720px,1fr)_320px] 2xl:grid-cols-[360px_minmax(860px,1fr)_340px]">
             <aside className="surface-card max-h-[calc(100vh-5.5rem)] overflow-y-auto rounded-[22px] p-4">
               <div className="space-y-4">
@@ -1468,7 +1467,6 @@ export function LaunchFramesStudio({
           </div>
         ) : null}
       </section>
-    </main>
   );
 }
 
