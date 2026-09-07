@@ -117,8 +117,52 @@ const messages = {
       resetFrame: 'Frame zurücksetzen',
       desktopFrame: 'Desktop',
       phoneFrame: 'Handy',
-      canvas: 'Canvas-Ausschnitt',
+      canvas: 'App-Ausschnitt',
       zoom: 'Zoom',
+      editorZoom: 'Editor-Zoom',
+      undo: 'Rückgängig',
+      redo: 'Wiederholen',
+      fit: 'Fit',
+      fitToView: 'In Ansicht einpassen',
+      actualSize: '100% anzeigen',
+      centerView: 'Ansicht zentrieren',
+      lockAspectRatio: 'Seitenverhältnis sperren',
+      unlockAspectRatio: 'Seitenverhältnis freigeben',
+      showGuides: 'Hilfslinien anzeigen',
+      hideGuides: 'Hilfslinien ausblenden',
+      enableSnap: 'Einrasten aktivieren',
+      disableSnap: 'Einrasten deaktivieren',
+      showTextLayer: 'Text anzeigen',
+      hideTextLayer: 'Text ausblenden',
+      showAppLayer: 'App anzeigen',
+      hideAppLayer: 'App ausblenden',
+      showBackgroundLayer: 'Hintergrund anzeigen',
+      hideBackgroundLayer: 'Hintergrund ausblenden',
+      textLayer: 'Textbereich',
+      backgroundLayer: 'Hintergrund',
+      visible: 'Sichtbar',
+      hidden: 'Aus',
+      textScale: 'Textgröße',
+      textAlign: 'Ausrichtung',
+      textAlignAuto: 'Automatisch',
+      textAlignLeft: 'Links',
+      textAlignCenter: 'Zentriert',
+      textAlignRight: 'Rechts',
+      headlineWeight: 'Headline-Gewicht',
+      textWeightMedium: 'Medium',
+      textWeightSemibold: 'Semibold',
+      textWeightBold: 'Bold',
+      textWeightHeavy: 'Heavy',
+      textSpacing: 'Textabstand',
+      textOffsetX: 'Text X',
+      textOffsetY: 'Text Y',
+      backgroundComposition: 'Glow-Position',
+      backgroundCompositionDiagonal: 'Diagonal',
+      backgroundCompositionTop: 'Oben',
+      backgroundCompositionBottom: 'Unten',
+      backgroundCompositionSides: 'Seiten',
+      backgroundIntensity: 'Glow-Stärke',
+      backgroundBlur: 'Blur-Größe',
       viewportZoom: 'Viewport-Zoom',
       featureZoom: 'Feature-Zoom',
       featureX: 'Feature X',
@@ -131,16 +175,21 @@ const messages = {
       topLeft: 'Oben links',
       center: 'Mitte',
       closeUp: 'Nah',
-      exportScale: '2x Export',
+      exportScale: 'Preset-Format',
       scenes: 'Szenen',
       sceneEditor: 'Texte anpassen',
       headline: 'Headline',
       subline: 'Subline',
       output: 'Aktueller Export',
-      exportReady: 'PNG wurde vorbereitet.',
-      exportError: 'Der PNG-Export ist fehlgeschlagen. Nimm die URL zuerst als Screenshot auf oder lade einen Screenshot hoch.',
-      exporting: 'PNG wird erstellt...',
-      downloadPng: 'Preview als PNG laden',
+      exportReady: 'Export wurde vorbereitet.',
+      exportError: 'Der Export ist fehlgeschlagen. Prüfe, ob die URL öffentlich erreichbar ist.',
+      exporting: 'Export wird erstellt...',
+      downloadPng: 'Export laden',
+      exportDialogTitle: 'Export-Vorschau',
+      closeExportDialog: 'Export schließen',
+      exportFileType: 'Dateityp',
+      exportFileName: 'Dateiname',
+      jpegQuality: 'JPEG-Qualität',
       packs: {
         social: 'Social Card',
         appStore: 'App Store',
@@ -149,79 +198,99 @@ const messages = {
       }
     },
     faq: {
-      eyebrow: 'Häufige Fragen',
-      title: 'Antworten auf die wichtigsten Fragen vor dem Start.',
+      eyebrow: 'FAQ',
+      title: 'Fragen zu LaunchFrames.',
       intro:
-        'Kurz, klar und ohne Sales-Floskeln. Hier findest du die Punkte, die vor Signup, Testphase oder Upgrade am häufigsten offen bleiben.',
-      badgePrimary: 'Schnelle Antworten',
-      badgeSecondary: 'Kein Support-Ticket nötig',
+        'Kurz und konkret: Was LaunchFrames kann, wie der Export funktioniert und worauf du bei Store-Assets achten solltest.',
+      badgePrimary: 'Launch-Assets',
+      badgeSecondary: 'Export und Datenschutz',
       sections: [
         {
-          title: 'Produkt und Zugang',
+          title: 'Produkt und Workflow',
           items: [
             {
-              question: 'Kann ich das Produkt erst testen, bevor ich zahle?',
+              question: 'Was ist LaunchFrames?',
               answer:
-                'Ja. Der Einstieg ist bewusst niedrig gehalten, damit du das Produkt erst im echten Kontext ausprobieren kannst, bevor ein Upgrade sinnvoll wird.'
+                'LaunchFrames ist ein Studio für App-Screenshots und Launch-Assets. Du gibst eine App-URL ein, platzierst die Oberfläche auf einem Canvas, ergänzt Headline und Subline und exportierst fertige Bilder für Stores, Social Media oder Landingpages.'
             },
             {
-              question: 'Brauche ich direkt ein Team oder mehrere Nutzer?',
+              question: 'Für wen ist das gedacht?',
               answer:
-                'Nein. Du kannst allein starten und später weitere Mitglieder einladen, sobald dein Workflow stabil ist oder Zusammenarbeit wichtig wird.'
+                'Vor allem für Entwickler, Indie Hacker und kleine Produktteams, die schnell hochwertige Assets aus echten App-Screens erstellen möchten, ohne jedes Format manuell in einem Design-Tool nachzubauen.'
             },
             {
-              question: 'Kann ich später auf einen bezahlten Plan wechseln?',
+              question: 'Kann ich eine echte Website oder App als Quelle verwenden?',
               answer:
-                'Ja. Der Upgrade-Pfad ist bewusst einfach gehalten, damit du erst dann zahlst, wenn die Nutzung regelmäßig wird oder du mehr Limits brauchst.'
+                'Ja. Öffentliche URLs können als Vorschau geladen und beim Export als Screenshot aufgenommen werden. Lokale oder geschützte Apps funktionieren später sinnvoll über Uploads oder eine eigene Capture-Integration.'
             }
           ]
         },
         {
-          title: 'Abrechnung und Datenschutz',
+          title: 'Canvas und Gestaltung',
           items: [
             {
-              question: 'Was passiert mit meinen Daten, wenn ich kündige?',
+              question: 'Warum gibt es einen Canvas statt nur einen Screenshot-Download?',
               answer:
-                'Dein Zugang und deine Daten sollten nachvollziehbar behandelt werden. Die rechtlichen Details findest du in Datenschutz und AGB, die im Footer verlinkt sind.'
+                'Der Canvas bildet das spätere Exportformat direkt ab. So siehst du schon vor dem Download, wie viel Platz Text, Hintergrund und App-Fenster im fertigen Bild einnehmen.'
             },
             {
-              question: 'Fallen Kosten an, wenn ich das Produkt kaum nutze?',
+              question: 'Was ist der Unterschied zwischen Viewport-Zoom und Feature-Zoom?',
               answer:
-                'Das Produkt ist darauf ausgelegt, mit einer klaren Free- und Upgrade-Logik zu arbeiten. So entstehen Kosten erst dann, wenn die Nutzung den Mehrwert rechtfertigt.'
+                'Viewport-Zoom verändert, wie groß die geladene App im simulierten Browser gerendert wird. Feature-Zoom zoomt danach in die App hinein, ohne das App-Fenster selbst zu verändern. So kannst du Details hervorheben, ohne das Layout des Assets zu zerstören.'
             },
             {
-              question: 'Ist Stripe für Zahlungen verpflichtend?',
+              question: 'Kann Text über der App landen?',
               answer:
-                'Für echte Zahlungen ja. In der Entwicklung kann Billing aber im Mock-Modus simuliert werden, damit Produktarbeit ohne frühe Stripe-Abhängigkeit möglich bleibt.'
+                'Der Textbereich weicht automatisch in freie Bereiche neben, über oder unter der App aus. Zusätzlich kannst du Textgröße, Abstand, Ausrichtung und leichte Offsets steuern, ohne dass der Text einfach hinter dem App-Fenster verschwindet.'
             }
           ]
         },
         {
-          title: 'Technik und Betrieb',
+          title: 'Export und Plattformen',
           items: [
             {
-              question: 'Brauche ich für den produktiven Betrieb eine eigene Datenbank?',
+              question: 'Welche Exportformate gibt es?',
               answer:
-                'Ja. Die App läuft separat von der Datenbank. In Production wird eine externe Postgres-Datenbank eingebunden, während lokal auch Docker oder eine gehostete Test-DB reicht.'
+                'Der Export unterstützt PNG und JPEG. PNG ist der Standard, weil UI, Text und Linien verlustfrei bleiben. JPEG ist sinnvoll, wenn Dateigröße wichtiger ist und keine Transparenz gebraucht wird.'
             },
             {
-              question: 'Ist das eher für MVPs oder schon für echte Kunden gedacht?',
+              question: 'Bleiben EXIF-, C2PA- oder Upload-Metadaten im Export?',
               answer:
-                'Beides. Das Setup ist schlank genug für schnelle Validierung, aber strukturiert genug, um daraus ein produktives SaaS mit echten Nutzern weiterzuentwickeln.'
+                'Nein. Das finale Bild wird neu gerendert. Dadurch werden Metadaten aus hochgeladenen oder gecaptureten Bildern nicht in die exportierte Datei übernommen.'
             },
             {
-              question: 'Wie schnell komme ich ins Dashboard?',
+              question: 'Prüft LaunchFrames schon alle Store-Regeln?',
               answer:
-                'Sobald dein Account angelegt ist, kommst du direkt in den geschützten Bereich. Navigation und geladene Daten sind darauf ausgelegt, den Einstieg möglichst reibungsarm zu machen.'
+                'Noch nicht vollständig. Die wichtigsten Preset-Größen sind bereits angelegt. Validierungen wie maximale Dateigröße, erlaubte Seitenverhältnisse oder plattformspezifische Hinweise sollen später ergänzt werden, wenn die Store-Anforderungen final gesammelt sind.'
+            }
+          ]
+        },
+        {
+          title: 'Status und Datenschutz',
+          items: [
+            {
+              question: 'Ist LaunchFrames schon ein fertiges Produkt?',
+              answer:
+                'LaunchFrames ist aktuell ein MVP. Der Fokus liegt zuerst auf einem starken Studio-Erlebnis: echte Vorschau, direkte Anpassung, saubere Exporte und gute Defaults.'
+            },
+            {
+              question: 'Werden meine App-Screens dauerhaft gespeichert?',
+              answer:
+                'Im aktuellen MVP ist der Workflow auf direkte Vorschau und Export ausgelegt. Wenn später Projekte, Uploads oder Team-Funktionen dauerhaft gespeichert werden, sollte das klar in Produkt, Datenschutz und Account-Einstellungen sichtbar sein.'
+            },
+            {
+              question: 'Welche Rolle spielt Arratel?',
+              answer:
+                'Arratel ist die Umbrella-Marke hinter LaunchFrames. LaunchFrames ist der aktuelle Produktname für dieses Screenshot- und Launch-Asset-Studio.'
             }
           ]
         }
       ],
       supportTitle: 'Noch etwas unklar?',
       supportBody:
-        'Wenn eine Frage vor Signup oder Upgrade offen bleibt, sollte sie hier auftauchen. Wenn nicht, ist das ein Signal, dass die FAQ erweitert werden sollte.',
-      supportPrimary: 'Preise ansehen',
-      supportSecondary: 'Zum Start'
+        'Wenn beim Erstellen deines ersten Launch-Assets etwas fehlt, ist das wahrscheinlich ein guter Kandidat für die nächste Produktiteration.',
+      supportPrimary: 'Studio öffnen',
+      supportSecondary: 'Zur Startseite'
     },
     auth: {
       signInTitle: 'Melde dich in deinem Konto an',
@@ -464,8 +533,52 @@ const messages = {
       resetFrame: 'Reset frame',
       desktopFrame: 'Desktop',
       phoneFrame: 'Phone',
-      canvas: 'Canvas crop',
+      canvas: 'App crop',
       zoom: 'Zoom',
+      editorZoom: 'Editor zoom',
+      undo: 'Undo',
+      redo: 'Redo',
+      fit: 'Fit',
+      fitToView: 'Fit to view',
+      actualSize: 'Show 100%',
+      centerView: 'Center view',
+      lockAspectRatio: 'Lock aspect ratio',
+      unlockAspectRatio: 'Unlock aspect ratio',
+      showGuides: 'Show guides',
+      hideGuides: 'Hide guides',
+      enableSnap: 'Enable snap',
+      disableSnap: 'Disable snap',
+      showTextLayer: 'Show text',
+      hideTextLayer: 'Hide text',
+      showAppLayer: 'Show app',
+      hideAppLayer: 'Hide app',
+      showBackgroundLayer: 'Show background',
+      hideBackgroundLayer: 'Hide background',
+      textLayer: 'Text area',
+      backgroundLayer: 'Background',
+      visible: 'Visible',
+      hidden: 'Off',
+      textScale: 'Text size',
+      textAlign: 'Alignment',
+      textAlignAuto: 'Automatic',
+      textAlignLeft: 'Left',
+      textAlignCenter: 'Center',
+      textAlignRight: 'Right',
+      headlineWeight: 'Headline weight',
+      textWeightMedium: 'Medium',
+      textWeightSemibold: 'Semibold',
+      textWeightBold: 'Bold',
+      textWeightHeavy: 'Heavy',
+      textSpacing: 'Text spacing',
+      textOffsetX: 'Text X',
+      textOffsetY: 'Text Y',
+      backgroundComposition: 'Glow position',
+      backgroundCompositionDiagonal: 'Diagonal',
+      backgroundCompositionTop: 'Top',
+      backgroundCompositionBottom: 'Bottom',
+      backgroundCompositionSides: 'Sides',
+      backgroundIntensity: 'Glow intensity',
+      backgroundBlur: 'Blur size',
       viewportZoom: 'Viewport zoom',
       featureZoom: 'Feature zoom',
       featureX: 'Feature X',
@@ -478,16 +591,21 @@ const messages = {
       topLeft: 'Top left',
       center: 'Center',
       closeUp: 'Close',
-      exportScale: '2x export',
+      exportScale: 'Preset format',
       scenes: 'Scenes',
       sceneEditor: 'Edit copy',
       headline: 'Headline',
       subline: 'Subline',
       output: 'Current export',
-      exportReady: 'PNG is ready.',
-      exportError: 'PNG export failed. Capture the URL first or upload a screenshot.',
-      exporting: 'Creating PNG...',
-      downloadPng: 'Download preview PNG',
+      exportReady: 'Export is ready.',
+      exportError: 'Export failed. Check that the URL is publicly reachable.',
+      exporting: 'Creating export...',
+      downloadPng: 'Download export',
+      exportDialogTitle: 'Export preview',
+      closeExportDialog: 'Close export',
+      exportFileType: 'File type',
+      exportFileName: 'File name',
+      jpegQuality: 'JPEG quality',
       packs: {
         social: 'Social Card',
         appStore: 'App Store',

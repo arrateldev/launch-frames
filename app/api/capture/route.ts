@@ -21,6 +21,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     const sourceUrl = normalizeSourceUrl(body?.url);
     const device = normalizeDevice(body?.device);
+    const aspectRatio = normalizeAspectRatio(body?.aspectRatio);
+    const viewportWidth = normalizeViewportDimension(body?.viewportWidth, 240, 1800);
+    const viewportHeight = normalizeViewportDimension(body?.viewportHeight, 320, 2200);
+    const viewportZoom = normalizeViewportZoom(body?.viewportZoom);
 
     if (!sourceUrl) {
       return NextResponse.json(
@@ -29,7 +33,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const viewport = viewportByDevice[device];
+    const viewport = getCaptureViewport(
+      device,
+      aspectRatio,
+      viewportZoom,
+      viewportWidth,
+      viewportHeight
+    );
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({
       ...(device === 'phone' ? devices['iPhone 15'] : {}),
@@ -50,8 +60,7 @@ export async function POST(request: Request) {
     await page.waitForTimeout(500);
 
     const screenshot = await page.screenshot({
-      type: 'png',
-      fullPage: true
+      type: 'png'
     });
 
     return new NextResponse(new Blob([new Uint8Array(screenshot)]), {
@@ -69,6 +78,34 @@ export async function POST(request: Request) {
   } finally {
     await browser?.close();
   }
+}
+
+function getCaptureViewport(
+  device: CaptureDevice,
+  aspectRatio: number | null,
+  viewportZoom: number,
+  viewportWidth: number | null,
+  viewportHeight: number | null
+) {
+  const base = viewportByDevice[device];
+
+  if (viewportWidth && viewportHeight) {
+    return {
+      width: viewportWidth,
+      height: viewportHeight,
+      deviceScaleFactor: base.deviceScaleFactor
+    };
+  }
+
+  const targetAspectRatio = aspectRatio ?? base.width / base.height;
+  const cssWidth = base.width / viewportZoom;
+  const cssHeight = cssWidth / targetAspectRatio;
+
+  return {
+    width: Math.round(clamp(cssWidth, 320, 1800)),
+    height: Math.round(clamp(cssHeight, 360, 2200)),
+    deviceScaleFactor: base.deviceScaleFactor
+  };
 }
 
 function normalizeSourceUrl(value: unknown) {
@@ -99,4 +136,32 @@ function normalizeDevice(value: unknown): CaptureDevice {
   return value === 'phone' || value === 'tablet' || value === 'desktop'
     ? value
     : 'desktop';
+}
+
+function normalizeAspectRatio(value: unknown) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return clamp(value, 0.28, 3.2);
+}
+
+function normalizeViewportZoom(value: unknown) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 1;
+  }
+
+  return clamp(value, 0.5, 1.25);
+}
+
+function normalizeViewportDimension(value: unknown, min: number, max: number) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return Math.round(clamp(value, min, max));
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
