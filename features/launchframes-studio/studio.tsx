@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type CSSProperties,
   type PointerEvent,
   type RefObject,
@@ -34,6 +35,7 @@ import {
   Type,
   Undo2,
   Unlock,
+  Upload,
   X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -50,7 +52,13 @@ type Scene = {
   subline: string;
 };
 
-type PackId = 'social' | 'appStore' | 'googlePlay' | 'microsoft';
+type PackId =
+  | 'social'
+  | 'appStore'
+  | 'googlePlay'
+  | 'microsoft'
+  | 'chromeStore'
+  | 'chromeStoreSmall';
 type TemplateId = 'clean' | 'contrast' | 'halo';
 type CropState = {
   viewportZoom: number;
@@ -155,7 +163,9 @@ const packOptions = [
   { id: 'social', width: 1200, height: 630, accent: 'Open Graph' },
   { id: 'appStore', width: 1290, height: 2796, accent: 'iPhone' },
   { id: 'googlePlay', width: 1024, height: 500, accent: 'Feature Graphic' },
-  { id: 'microsoft', width: 1366, height: 768, accent: 'Store Screenshot' }
+  { id: 'microsoft', width: 1366, height: 768, accent: 'Store Screenshot' },
+  { id: 'chromeStore', width: 1280, height: 800, accent: 'Promo Screenshot' },
+  { id: 'chromeStoreSmall', width: 640, height: 400, accent: 'Small Screenshot' }
 ] as const satisfies ReadonlyArray<CanvasSize & { id: PackId; accent: string }>;
 
 const templateOptions = [
@@ -261,6 +271,7 @@ export function LaunchFramesStudio({
   const [sourceUrl, setSourceUrl] = useState('https://clavispass.github.io/ClavisPass/');
   const canvasElementRef = useRef<HTMLDivElement>(null);
   const frameElementRef = useRef<HTMLDivElement>(null);
+  const screenshotInputRef = useRef<HTMLInputElement>(null);
   const [capturedPreview, setCapturedPreview] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState<ImageSize | null>(null);
   const [selectedPack, setSelectedPack] = useState<PackId>('social');
@@ -511,10 +522,14 @@ export function LaunchFramesStudio({
       });
 
       if (!response.ok) {
-        throw new Error('Capture failed');
+        const details = await response.text().catch(() => '');
+        throw new Error(`Capture failed with ${response.status}: ${details}`);
       }
 
       const blob = await response.blob();
+      if (!blob.type.startsWith('image/')) {
+        throw new Error(`Capture returned ${blob.type || 'an unknown content type'}`);
+      }
       const dataUrl = await blobToDataUrl(blob);
       const nextImageSize = await getImageSize(dataUrl);
 
@@ -525,7 +540,8 @@ export function LaunchFramesStudio({
 
       setCaptureState('idle');
       return { dataUrl, imageSize: nextImageSize };
-    } catch {
+    } catch (error) {
+      console.error('LaunchFrames capture failed:', error);
       setCaptureState('error');
       return null;
     }
@@ -590,7 +606,8 @@ export function LaunchFramesStudio({
         blob: exportBlob
       });
       setExportState('ready');
-    } catch {
+    } catch (error) {
+      console.error('LaunchFrames export failed:', error);
       setExportState('error');
     }
   }
@@ -604,6 +621,28 @@ export function LaunchFramesStudio({
     link.href = exportPreview.url;
     link.download = getExportFileName(exportFileName || exportName, exportFormat);
     link.click();
+  }
+
+  async function handleScreenshotUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file || !file.type.startsWith('image/')) {
+      return;
+    }
+
+    try {
+      commitHistory();
+      const dataUrl = await blobToDataUrl(file);
+      const nextImageSize = await getImageSize(dataUrl);
+      setCapturedPreview(dataUrl);
+      setImageSize(nextImageSize);
+      setCrop(DEFAULT_CROP);
+      setCaptureState('idle');
+      setExportState('idle');
+    } catch {
+      setCaptureState('error');
+    }
   }
 
   return (
@@ -634,6 +673,56 @@ export function LaunchFramesStudio({
                     />
                   </div>
                 </label>
+
+                <div className="rounded-[16px] border border-border/70 bg-secondary/45 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-foreground">
+                      {t.screenshot}
+                    </span>
+                    {capturedPreview ? (
+                      <span className="rounded-[10px] bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
+                        {t.screenshotActive}
+                      </span>
+                    ) : null}
+                  </div>
+                  <input
+                    ref={screenshotInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+                    className="sr-only"
+                    onChange={handleScreenshotUpload}
+                  />
+                  <div className="mt-3 grid gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start text-xs"
+                      onClick={() => screenshotInputRef.current?.click()}
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      {capturedPreview ? t.replaceScreenshot : t.uploadScreenshot}
+                    </Button>
+                    {capturedPreview ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start text-xs"
+                        onClick={() => {
+                          commitHistory();
+                          setCapturedPreview(null);
+                          setImageSize(null);
+                          setCrop(DEFAULT_CROP);
+                          setExportState('idle');
+                        }}
+                      >
+                        <LinkIcon className="h-3.5 w-3.5" />
+                        {t.showLivePreview}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
 
                 <div className="rounded-[16px] border border-border/70 bg-secondary/45 p-3">
                   <div className="flex items-center justify-between gap-3">
@@ -974,7 +1063,7 @@ export function LaunchFramesStudio({
                 </div>
               </div>
 
-              <div className="mt-5 grid shrink-0 gap-3 md:grid-cols-4">
+              <div className="mt-5 grid shrink-0 gap-3 sm:grid-cols-2 xl:grid-cols-6">
                 {packOptions.map((pack) => (
                   <button
                     key={pack.id}

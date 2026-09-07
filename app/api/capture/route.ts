@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import serverlessChromium from '@sparticuz/chromium';
-import { chromium, devices, type Browser } from 'playwright';
+import { chromium, devices, type Browser } from 'playwright-core';
 
 type CaptureDevice = 'desktop' | 'phone' | 'tablet';
 
@@ -91,7 +91,14 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   } finally {
-    await browser?.close();
+    if (browser) {
+      await Promise.race([
+        browser.close(),
+        new Promise<void>((resolve) => setTimeout(resolve, 5000))
+      ]).catch((error) => {
+        console.warn('Chromium close failed:', error);
+      });
+    }
   }
 }
 

@@ -123,6 +123,7 @@ const messages = {
       screenshot: 'Screenshot-Fallback',
       uploadScreenshot: 'Screenshot hochladen',
       replaceScreenshot: 'Screenshot ersetzen',
+      screenshotActive: 'Aktiv',
       showLivePreview: 'Zur Live-Vorschau zurück',
       brandColor: 'Brandfarbe',
       accentColor: 'Akzentfarbe',
@@ -210,7 +211,9 @@ const messages = {
         social: 'Social Card',
         appStore: 'App Store',
         googlePlay: 'Google Play',
-        microsoft: 'Microsoft Store'
+        microsoft: 'Microsoft Store',
+        chromeStore: 'Chrome Web Store',
+        chromeStoreSmall: 'Chrome Store Small'
       }
     },
     faq: {
@@ -555,6 +558,7 @@ const messages = {
       screenshot: 'Screenshot fallback',
       uploadScreenshot: 'Upload screenshot',
       replaceScreenshot: 'Replace screenshot',
+      screenshotActive: 'Active',
       showLivePreview: 'Return to live preview',
       brandColor: 'Brand color',
       accentColor: 'Accent color',
@@ -642,7 +646,9 @@ const messages = {
         social: 'Social Card',
         appStore: 'App Store',
         googlePlay: 'Google Play',
-        microsoft: 'Microsoft Store'
+        microsoft: 'Microsoft Store',
+        chromeStore: 'Chrome Web Store',
+        chromeStoreSmall: 'Chrome Store Small'
       }
     },
     faq: {
