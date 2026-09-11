@@ -6,18 +6,23 @@ import {
   useState,
   type ChangeEvent,
   type CSSProperties,
+  type ReactNode,
   type PointerEvent,
   type RefObject,
   type WheelEvent
 } from 'react';
+import JSZip from 'jszip';
 import {
   Aperture,
   AlignCenter,
   AlignLeft,
   AlignRight,
   AppWindow,
+  Archive,
   Download,
+  FileCheck2,
   Grid3X3,
+  Image as ImageIcon,
   Link as LinkIcon,
   LocateFixed,
   LoaderCircle,
@@ -59,6 +64,7 @@ type PackId =
   | 'microsoft'
   | 'chromeStore'
   | 'chromeStoreSmall';
+type PackGroupId = 'store' | 'browser' | 'social';
 type TemplateId = 'clean' | 'contrast' | 'halo';
 type CropState = {
   viewportZoom: number;
@@ -111,6 +117,7 @@ type ExportPreviewState = {
 };
 
 type ExportFormat = 'png' | 'jpeg';
+type BrandFontId = 'manrope' | 'system' | 'serif' | 'mono';
 
 type LayerVisibility = {
   text: boolean;
@@ -133,6 +140,11 @@ type BackgroundStyleState = {
   composition: 'diagonal' | 'top' | 'bottom' | 'sides';
 };
 
+type BrandKitState = {
+  logoUrl: string | null;
+  font: BrandFontId;
+};
+
 type TextLayout = {
   placement: 'left' | 'right' | 'top' | 'bottom';
   left: number;
@@ -143,6 +155,8 @@ type TextLayout = {
 
 type StudioSnapshot = {
   selectedPack: PackId;
+  selectedPackGroup: PackGroupId;
+  selectedSceneId: string;
   selectedTemplate: TemplateId;
   scenes: Scene[];
   brandColor: string;
@@ -152,6 +166,7 @@ type StudioSnapshot = {
   layers: LayerVisibility;
   textStyle: TextStyleState;
   backgroundStyle: BackgroundStyleState;
+  brandKit: BrandKitState;
 };
 
 type HistoryState = {
@@ -168,11 +183,33 @@ const packOptions = [
   { id: 'chromeStoreSmall', width: 640, height: 400, accent: 'Small Screenshot' }
 ] as const satisfies ReadonlyArray<CanvasSize & { id: PackId; accent: string }>;
 
+const packGroups = [
+  { id: 'social', packIds: ['social'] },
+  { id: 'store', packIds: ['appStore', 'googlePlay', 'microsoft'] },
+  { id: 'browser', packIds: ['chromeStore', 'chromeStoreSmall'] }
+] as const satisfies ReadonlyArray<{ id: PackGroupId; packIds: readonly PackId[] }>;
+
 const templateOptions = [
   { id: 'clean', label: 'Clean', icon: Sun },
   { id: 'contrast', label: 'Contrast', icon: Moon },
   { id: 'halo', label: 'Halo', icon: Sparkles }
 ] as const satisfies ReadonlyArray<{ id: TemplateId; label: string; icon: typeof Sun }>;
+
+const fontOptions = [
+  { id: 'manrope', cssFamily: 'Manrope, Inter, Arial, sans-serif' },
+  { id: 'system', cssFamily: 'Inter, ui-sans-serif, system-ui, sans-serif' },
+  { id: 'serif', cssFamily: 'Georgia, ui-serif, serif' },
+  { id: 'mono', cssFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }
+] as const satisfies ReadonlyArray<{ id: BrandFontId; cssFamily: string }>;
+
+const storeRuleSources = {
+  appStore: 'Apple App Store Connect',
+  googlePlay: 'Google Play Console',
+  microsoft: 'Microsoft Store',
+  chromeStore: 'Chrome Web Store',
+  chromeStoreSmall: 'Chrome Web Store',
+  social: 'Open Graph'
+} as const satisfies Record<PackId, string>;
 
 const backgroundCompositionOptions = [
   { id: 'diagonal', labelKey: 'backgroundCompositionDiagonal' },
@@ -272,9 +309,12 @@ export function LaunchFramesStudio({
   const canvasElementRef = useRef<HTMLDivElement>(null);
   const frameElementRef = useRef<HTMLDivElement>(null);
   const screenshotInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const [capturedPreview, setCapturedPreview] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState<ImageSize | null>(null);
+  const [selectedPackGroup, setSelectedPackGroup] = useState<PackGroupId>('social');
   const [selectedPack, setSelectedPack] = useState<PackId>('social');
+  const [selectedSceneId, setSelectedSceneId] = useState(initialScenes[0].id);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateId>('clean');
   const [scenes, setScenes] = useState<Scene[]>(initialScenes);
   const [brandColor, setBrandColor] = useState('#787ff6');
@@ -292,6 +332,10 @@ export function LaunchFramesStudio({
   const [backgroundStyle, setBackgroundStyle] = useState<BackgroundStyleState>(
     DEFAULT_BACKGROUND_STYLE
   );
+  const [brandKit, setBrandKit] = useState<BrandKitState>({
+    logoUrl: null,
+    font: 'manrope'
+  });
   const [history, setHistory] = useState<HistoryState>({ past: [], future: [] });
   const editSessionRef = useRef<string | null>(null);
   const exportPreviewRef = useRef<ExportPreviewState | null>(null);
@@ -303,10 +347,15 @@ export function LaunchFramesStudio({
   const [exportFormat, setExportFormat] = useState<ExportFormat>('png');
   const [jpegQuality, setJpegQuality] = useState(92);
 
-  const selectedScene = scenes[0] ?? initialScenes[0];
+  const selectedScene =
+    scenes.find((scene) => scene.id === selectedSceneId) ?? scenes[0] ?? initialScenes[0];
+  const selectedPackGroupConfig =
+    packGroups.find((group) => group.id === selectedPackGroup) ?? packGroups[0];
+  const visiblePackOptions = packOptions.filter((pack) =>
+    (selectedPackGroupConfig.packIds as readonly PackId[]).includes(pack.id)
+  );
   const selectedPackConfig =
     packOptions.find((pack) => pack.id === selectedPack) ?? packOptions[0];
-  const captureDevice = getCaptureDevice(selectedPackConfig, frame);
   const normalizedSourceUrl = normalizeSourceUrl(sourceUrl);
   const canvasImage = capturedPreview;
   const featurePanLimit = getFeaturePanLimit(crop.featureZoom);
@@ -318,15 +367,26 @@ export function LaunchFramesStudio({
     : featurePanLimit;
   const featureOffsetX = clamp(crop.featureOffsetX, -featurePanLimitX, featurePanLimitX);
   const featureOffsetY = clamp(crop.featureOffsetY, -featurePanLimitY, featurePanLimitY);
+  const activeFontFamily = getFontFamily(brandKit.font);
+  const storeRuleNotes = getStoreRuleNotes({
+    pack: selectedPackConfig,
+    scenes,
+    exportFormat,
+    layers,
+    brandKit,
+    copy: t.storeRuleMessages
+  });
 
   const exportName = useMemo(
-    () => `launchframes-${selectedPack}-${selectedScene.id}.png`,
-    [selectedPack, selectedScene.id]
+    () => getAssetFileName(selectedPackConfig, selectedScene, exportFormat),
+    [exportFormat, selectedPackConfig, selectedScene]
   );
 
   function createSnapshot(): StudioSnapshot {
     return {
       selectedPack,
+      selectedPackGroup,
+      selectedSceneId,
       selectedTemplate,
       scenes: scenes.map((scene) => ({ ...scene })),
       brandColor,
@@ -335,12 +395,15 @@ export function LaunchFramesStudio({
       frame: { ...frame },
       layers: { ...layers },
       textStyle: { ...textStyle },
-      backgroundStyle: { ...backgroundStyle }
+      backgroundStyle: { ...backgroundStyle },
+      brandKit: { ...brandKit }
     };
   }
 
   function restoreSnapshot(snapshot: StudioSnapshot) {
     setSelectedPack(snapshot.selectedPack);
+    setSelectedPackGroup(snapshot.selectedPackGroup ?? 'social');
+    setSelectedSceneId(snapshot.selectedSceneId ?? snapshot.scenes[0]?.id ?? initialScenes[0].id);
     setSelectedTemplate(snapshot.selectedTemplate);
     setScenes(snapshot.scenes.map((scene) => ({ ...scene })));
     setBrandColor(snapshot.brandColor);
@@ -352,6 +415,10 @@ export function LaunchFramesStudio({
     setBackgroundStyle({
       ...DEFAULT_BACKGROUND_STYLE,
       ...(snapshot.backgroundStyle ?? {})
+    });
+    setBrandKit({
+      logoUrl: snapshot.brandKit?.logoUrl ?? null,
+      font: snapshot.brandKit?.font ?? 'manrope'
     });
     setExportState('idle');
   }
@@ -412,6 +479,24 @@ export function LaunchFramesStudio({
     setExportState('idle');
   }
 
+  function selectPackGroup(groupId: PackGroupId) {
+    const nextGroup = packGroups.find((group) => group.id === groupId) ?? packGroups[0];
+    commitHistory();
+    setSelectedPackGroup(nextGroup.id);
+    setSelectedPack(nextGroup.packIds[0] ?? 'social');
+    setExportState('idle');
+  }
+
+  function selectScene(sceneId: string) {
+    commitHistory();
+    setSelectedSceneId(sceneId);
+    const scene = scenes.find((currentScene) => currentScene.id === sceneId);
+    if (scene) {
+      setFrame(getDefaultFrameForDevice(scene.device));
+    }
+    setExportState('idle');
+  }
+
   function updateTextStyle(nextStyle: Partial<TextStyleState>) {
     setTextStyle((current) => ({ ...current, ...nextStyle }));
     setExportState('idle');
@@ -419,6 +504,11 @@ export function LaunchFramesStudio({
 
   function updateBackgroundStyle(nextStyle: Partial<BackgroundStyleState>) {
     setBackgroundStyle((current) => ({ ...current, ...nextStyle }));
+    setExportState('idle');
+  }
+
+  function updateBrandKit(nextBrandKit: Partial<BrandKitState>) {
+    setBrandKit((current) => ({ ...current, ...nextBrandKit }));
     setExportState('idle');
   }
 
@@ -493,28 +583,38 @@ export function LaunchFramesStudio({
     setCanvasPan(DEFAULT_CANVAS_PAN);
   }
 
-  async function captureCurrentUrl({ persist = false } = {}) {
+  async function captureCurrentUrl({
+    persist = false,
+    packConfig = selectedPackConfig,
+    frameConfig = frame,
+    renderedFrameSize = null,
+    resetExportState = true
+  }: {
+    persist?: boolean;
+    packConfig?: CanvasSize;
+    frameConfig?: FrameState;
+    renderedFrameSize?: RenderedFrameSize | null;
+    resetExportState?: boolean;
+  } = {}) {
     if (!normalizedSourceUrl) {
       setCaptureState('error');
       return null;
     }
 
     setCaptureState('capturing');
-    setExportState('idle');
+    if (resetExportState) {
+      setExportState('idle');
+    }
 
     try {
-      const frameRect = frameElementRef.current?.getBoundingClientRect();
-      const exportFrame = getExportFrame(selectedScene.device, frame, selectedPackConfig);
-      const renderedFrameSize = frameRect
-        ? { width: frameRect.width / editorZoom, height: frameRect.height / editorZoom }
-        : null;
+      const exportFrame = getExportFrame(selectedScene.device, frameConfig, packConfig);
       const response = await fetch('/api/capture', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url: normalizedSourceUrl,
-          device: captureDevice,
-          aspectRatio: getFrameAspectRatio(selectedPackConfig, frame),
+          device: getCaptureDevice(packConfig, frameConfig),
+          aspectRatio: getFrameAspectRatio(packConfig, frameConfig),
           viewportWidth: (renderedFrameSize?.width ?? exportFrame.width) / crop.viewportZoom,
           viewportHeight: (renderedFrameSize?.height ?? exportFrame.height) / crop.viewportZoom,
           viewportZoom: crop.viewportZoom
@@ -562,6 +662,16 @@ export function LaunchFramesStudio({
     void prepareExportPreview(exportFormat, jpegQuality);
   }
 
+  async function generateFirstAsset() {
+    const captured = canvasImage ? true : await captureCurrentUrl({ persist: true });
+
+    if (!captured) {
+      return;
+    }
+
+    openExportDialog();
+  }
+
   async function prepareExportPreview(
     format = exportFormat,
     quality = jpegQuality
@@ -596,6 +706,8 @@ export function LaunchFramesStudio({
         layers,
         textStyle,
         backgroundStyle,
+        brandKit,
+        fontFamily: activeFontFamily,
         exportFormat: format,
         jpegQuality: quality,
         imageSource: captureResult?.dataUrl ?? null,
@@ -623,6 +735,86 @@ export function LaunchFramesStudio({
     link.click();
   }
 
+  async function downloadCurrentPack() {
+    const groupPackOptions = packOptions.filter((pack) =>
+      (selectedPackGroupConfig.packIds as readonly PackId[]).includes(pack.id)
+    );
+
+    setExportState('exporting');
+
+    try {
+      const zip = new JSZip();
+      const frameRect = frameElementRef.current?.getBoundingClientRect();
+      const activeRenderedFrameSize = frameRect
+        ? { width: frameRect.width / editorZoom, height: frameRect.height / editorZoom }
+        : null;
+
+      for (const pack of groupPackOptions) {
+        const folder = zip.folder(getSlug(t.packs[pack.id])) ?? zip;
+
+        for (const scene of scenes) {
+          const sceneFrame =
+            scene.id === selectedScene.id ? frame : getDefaultFrameForDevice(scene.device);
+          const source =
+            layers.app && canvasImage
+              ? { dataUrl: canvasImage, imageSize }
+              : layers.app
+                ? await captureCurrentUrl({
+                    packConfig: pack,
+                    frameConfig: sceneFrame,
+                    renderedFrameSize:
+                      pack.id === selectedPack && scene.id === selectedScene.id
+                        ? activeRenderedFrameSize
+                        : null,
+                    resetExportState: false
+                  })
+                : null;
+
+          if (layers.app && !source) {
+            throw new Error('Capture failed');
+          }
+
+          const exportBlob = await renderPreviewPng({
+            scene,
+            template: selectedTemplate,
+            brandColor,
+            accentColor,
+            canvasSize: pack,
+            renderedFrameSize:
+              pack.id === selectedPack && scene.id === selectedScene.id
+                ? activeRenderedFrameSize
+                : null,
+            frame: sceneFrame,
+            crop,
+            layers,
+            textStyle,
+            backgroundStyle,
+            brandKit,
+            fontFamily: activeFontFamily,
+            exportFormat,
+            jpegQuality,
+            imageSource: source?.dataUrl ?? null,
+            imageSize: source?.imageSize ?? null
+          });
+
+          folder.file(getAssetFileName(pack, scene, exportFormat), exportBlob);
+        }
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const zipUrl = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = zipUrl;
+      link.download = `${getSlug(`launchframes-${selectedPackGroup}`)}-pack.zip`;
+      link.click();
+      URL.revokeObjectURL(zipUrl);
+      setExportState('ready');
+    } catch (error) {
+      console.error('LaunchFrames pack export failed:', error);
+      setExportState('error');
+    }
+  }
+
   async function handleScreenshotUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -643,6 +835,18 @@ export function LaunchFramesStudio({
     } catch {
       setCaptureState('error');
     }
+  }
+
+  async function handleLogoUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file || !file.type.startsWith('image/')) {
+      return;
+    }
+
+    commitHistory();
+    updateBrandKit({ logoUrl: await blobToDataUrl(file) });
   }
 
   return (
@@ -673,6 +877,128 @@ export function LaunchFramesStudio({
                     />
                   </div>
                 </label>
+
+                <div className="rounded-[16px] border border-border/70 bg-background/80 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-foreground">
+                      {t.launchPack}
+                    </span>
+                    <span className="rounded-[10px] bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
+                      {scenes.length} {t.packScenes}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-2">
+                    {packGroups.map((group) => {
+                      const isActive = selectedPackGroup === group.id;
+
+                      return (
+                        <button
+                          key={group.id}
+                          type="button"
+                          onClick={() => selectPackGroup(group.id)}
+                          className={cn(
+                            'flex min-h-10 items-center justify-between gap-3 rounded-[12px] border px-3 py-2 text-left text-sm font-semibold transition-colors',
+                            isActive
+                              ? 'border-primary/45 bg-primary text-primary-foreground hover:bg-primary/90'
+                              : 'border-border/70 bg-secondary/45 text-muted-foreground hover:text-foreground'
+                          )}
+                          aria-pressed={isActive}
+                        >
+                          <span>{t.packGroups[group.id]}</span>
+                          <span className="text-xs font-medium opacity-75">
+                            {group.packIds.length}x
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    type="button"
+                    className="mt-3 w-full justify-start text-xs"
+                    size="sm"
+                    disabled={exportState === 'exporting' || captureState === 'capturing'}
+                    onClick={generateFirstAsset}
+                  >
+                    {exportState === 'exporting' || captureState === 'capturing' ? (
+                      <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5" />
+                    )}
+                    {t.generateFirstAsset}
+                  </Button>
+                </div>
+
+                <div className="rounded-[16px] border border-border/70 bg-secondary/45 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <ImageIcon className="h-4 w-4 text-primary" />
+                      {t.brandKit}
+                    </span>
+                    {brandKit.logoUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          commitHistory();
+                          updateBrandKit({ logoUrl: null });
+                        }}
+                        className="rounded-[10px] bg-background px-2 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        {t.removeLogo}
+                      </button>
+                    ) : null}
+                  </div>
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="sr-only"
+                    onChange={handleLogoUpload}
+                  />
+                  <div className="mt-3 grid grid-cols-[3rem_minmax(0,1fr)] gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-[12px] border border-border/70 bg-background">
+                      {brandKit.logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={brandKit.logoUrl}
+                          alt=""
+                          className="h-full w-full object-contain p-1.5"
+                        />
+                      ) : (
+                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-12 justify-start text-xs"
+                      onClick={() => logoInputRef.current?.click()}
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      {brandKit.logoUrl ? t.replaceLogo : t.uploadLogo}
+                    </Button>
+                  </div>
+                  <label className="mt-3 block">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {t.brandFont}
+                    </span>
+                    <select
+                      value={brandKit.font}
+                      onFocus={() => beginEditSession('brand.font')}
+                      onBlur={endEditSession}
+                      onChange={(event) =>
+                        updateBrandKit({ font: event.target.value as BrandFontId })
+                      }
+                      className="mt-2 h-10 w-full rounded-[12px] border border-border/70 bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-primary/50"
+                    >
+                      {fontOptions.map((font) => (
+                        <option key={font.id} value={font.id}>
+                          {t.fonts[font.id]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
 
                 <div className="rounded-[16px] border border-border/70 bg-secondary/45 p-3">
                   <div className="flex items-center justify-between gap-3">
@@ -1002,20 +1328,35 @@ export function LaunchFramesStudio({
                   </span>
                 </div>
 
-                <Button
-                  type="button"
-                  size="sm"
-                  className="shrink-0"
-                  disabled={exportState === 'exporting' || captureState === 'capturing'}
-                  onClick={openExportDialog}
-                >
-                  {exportState === 'exporting' || captureState === 'capturing' ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4" />
-                  )}
-                  {exportState === 'exporting' ? t.exporting : t.downloadPng}
-                </Button>
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={exportState === 'exporting' || captureState === 'capturing'}
+                    onClick={downloadCurrentPack}
+                  >
+                    {exportState === 'exporting' || captureState === 'capturing' ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Archive className="h-4 w-4" />
+                    )}
+                    {exportState === 'exporting' ? t.exporting : t.exportPack}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={exportState === 'exporting' || captureState === 'capturing'}
+                    onClick={openExportDialog}
+                  >
+                    {exportState === 'exporting' || captureState === 'capturing' ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                    {exportState === 'exporting' ? t.exporting : t.downloadAsset}
+                  </Button>
+                </div>
               </div>
 
               <div
@@ -1051,6 +1392,8 @@ export function LaunchFramesStudio({
                     layers={layers}
                     textStyle={textStyle}
                     backgroundStyle={backgroundStyle}
+                    brandKit={brandKit}
+                    fontFamily={activeFontFamily}
                     onFrameEditStart={commitHistory}
                     onFrameChange={(nextFrame) => {
                       setFrame(nextFrame);
@@ -1064,7 +1407,7 @@ export function LaunchFramesStudio({
               </div>
 
               <div className="mt-5 grid shrink-0 gap-3 sm:grid-cols-2 xl:grid-cols-6">
-                {packOptions.map((pack) => (
+                {visiblePackOptions.map((pack) => (
                   <button
                     key={pack.id}
                     type="button"
@@ -1089,10 +1432,65 @@ export function LaunchFramesStudio({
                   </button>
                 ))}
               </div>
+              <StoreRulePanel
+                title={t.storeRules}
+                sourceLabel={storeRuleSources[selectedPack]}
+                notes={storeRuleNotes}
+              />
             </section>
 
             <aside className="surface-card max-h-[calc(100vh-5.5rem)] overflow-y-auto rounded-[22px] p-4">
               <div className="flex flex-col gap-4">
+                <div className="order-1 rounded-[16px] border border-border/70 bg-secondary/45 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-foreground">
+                      {t.scenes}
+                    </span>
+                    <span className="rounded-[10px] bg-background px-2 py-1 text-xs font-semibold text-muted-foreground">
+                      {selectedScene.name}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-2">
+                    {scenes.map((scene, index) => {
+                      const isActive = selectedScene.id === scene.id;
+
+                      return (
+                        <button
+                          key={scene.id}
+                          type="button"
+                          onClick={() => selectScene(scene.id)}
+                          className={cn(
+                            'grid min-h-12 grid-cols-[1.75rem_minmax(0,1fr)] items-center gap-2 rounded-[12px] border px-2.5 py-2 text-left transition-colors',
+                            isActive
+                              ? 'border-primary/45 bg-primary/10 text-foreground'
+                              : 'border-border/70 bg-background text-muted-foreground hover:text-foreground'
+                          )}
+                          aria-pressed={isActive}
+                        >
+                          <span
+                            className={cn(
+                              'flex h-7 w-7 items-center justify-center rounded-[10px] text-xs font-bold',
+                              isActive
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-secondary text-muted-foreground'
+                            )}
+                          >
+                            {index + 1}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-semibold">
+                              {scene.name}
+                            </span>
+                            <span className="block truncate text-xs">
+                              {scene.headline}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div className="order-2 rounded-[16px] border border-border/70 bg-secondary/45 p-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -1576,6 +1974,8 @@ function PreviewCanvas({
   layers,
   textStyle,
   backgroundStyle,
+  brandKit,
+  fontFamily,
   onFrameEditStart,
   onFrameChange,
   crop,
@@ -1598,6 +1998,8 @@ function PreviewCanvas({
   layers: LayerVisibility;
   textStyle: TextStyleState;
   backgroundStyle: BackgroundStyleState;
+  brandKit: BrandKitState;
+  fontFamily: string;
   onFrameEditStart: () => void;
   onFrameChange: (frame: FrameState) => void;
   crop: CropState;
@@ -1737,11 +2139,23 @@ function PreviewCanvas({
       {showGuides ? <CanvasGuides /> : null}
       {layers.text ? (
         <div className="absolute z-10 break-words" style={textLayoutStyle}>
+          {brandKit.logoUrl ? (
+            <div className="mb-4 flex">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={brandKit.logoUrl}
+                alt=""
+                draggable={false}
+                className="h-9 w-9 rounded-[10px] object-contain"
+              />
+            </div>
+          ) : null}
           <h3
             className="leading-tight"
             style={{
               fontSize: `clamp(1.25rem, ${2.25 * textStyle.scale}rem, 3.25rem)`,
-              fontWeight: textStyle.headlineWeight
+              fontWeight: textStyle.headlineWeight,
+              fontFamily
             }}
           >
             {scene.headline}
@@ -1753,7 +2167,8 @@ function PreviewCanvas({
             )}
             style={{
               fontSize: `clamp(0.875rem, ${1 * textStyle.scale}rem, 1.5rem)`,
-              marginTop: `${1.25 * textStyle.gap}rem`
+              marginTop: `${1.25 * textStyle.gap}rem`,
+              fontFamily
             }}
           >
             {scene.subline}
@@ -1836,6 +2251,45 @@ function PreviewCanvas({
           <FrameResizeButton handle="bottom-left" onPointerDown={handleFrameResize} />
           </div>
         </div>
+    </div>
+  );
+}
+
+function StoreRulePanel({
+  title,
+  sourceLabel,
+  notes
+}: {
+  title: string;
+  sourceLabel: string;
+  notes: { state: 'pass' | 'warn'; message: ReactNode }[];
+}) {
+  return (
+    <div className="mt-3 shrink-0 rounded-[16px] border border-border/70 bg-background/85 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+          <FileCheck2 className="h-4 w-4 text-primary" />
+          {title}
+        </span>
+        <span className="rounded-[10px] bg-secondary px-2 py-1 text-xs font-semibold text-muted-foreground">
+          {sourceLabel}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {notes.map((note, index) => (
+          <div
+            key={index}
+            className={cn(
+              'rounded-[12px] border px-3 py-2 text-xs leading-5',
+              note.state === 'pass'
+                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-800'
+                : 'border-amber-500/25 bg-amber-500/10 text-amber-800'
+            )}
+          >
+            {note.message}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -2344,6 +2798,107 @@ function NewURLSafeHost(value: string) {
 
 const URLSafeHost = NewURLSafeHost;
 
+function getAssetFileName(
+  pack: CanvasSize & { id: PackId },
+  scene: Scene,
+  format: ExportFormat
+) {
+  const extension = format === 'jpeg' ? 'jpg' : 'png';
+
+  return [
+    'launchframes',
+    getSlug(pack.id),
+    `${pack.width}x${pack.height}`,
+    `${scene.id || scene.name}.${extension}`
+  ].join('-');
+}
+
+function getStoreRuleNotes({
+  pack,
+  scenes,
+  exportFormat,
+  layers,
+  brandKit,
+  copy
+}: {
+  pack: CanvasSize & { id: PackId };
+  scenes: Scene[];
+  exportFormat: ExportFormat;
+  layers: LayerVisibility;
+  brandKit: BrandKitState;
+  copy: Record<string, string>;
+}) {
+  const notes: { state: 'pass' | 'warn'; message: ReactNode }[] = [];
+  const isExactSize = (width: number, height: number) =>
+    pack.width === width && pack.height === height;
+
+  if (pack.id === 'appStore') {
+    notes.push({
+      state: isExactSize(1290, 2796) ? 'pass' : 'warn',
+      message: copy.appStoreSize
+    });
+    notes.push({
+      state: scenes.length >= 1 && scenes.length <= 10 ? 'pass' : 'warn',
+      message: copy.appleSceneCount
+    });
+  }
+
+  if (pack.id === 'googlePlay') {
+    notes.push({
+      state: isExactSize(1024, 500) ? 'pass' : 'warn',
+      message: copy.googlePlaySize
+    });
+    notes.push({
+      state: layers.background ? 'pass' : 'warn',
+      message: copy.googlePlayOpaque
+    });
+    if (brandKit.logoUrl) {
+      notes.push({
+        state: 'warn',
+        message: copy.googlePlayBranding
+      });
+    }
+  }
+
+  if (pack.id === 'microsoft') {
+    notes.push({
+      state: pack.width >= 1366 && pack.height >= 768 ? 'pass' : 'warn',
+      message: copy.microsoftSize
+    });
+    notes.push({
+      state: exportFormat === 'png' ? 'pass' : 'warn',
+      message: copy.microsoftPng
+    });
+  }
+
+  if (pack.id === 'chromeStore' || pack.id === 'chromeStoreSmall') {
+    notes.push({
+      state: isExactSize(1280, 800) || isExactSize(640, 400) ? 'pass' : 'warn',
+      message: copy.chromeSize
+    });
+    notes.push({
+      state: layers.background ? 'pass' : 'warn',
+      message: copy.chromeFullBleed
+    });
+  }
+
+  if (pack.id === 'social') {
+    notes.push({
+      state: isExactSize(1200, 630) ? 'pass' : 'warn',
+      message: copy.socialSize
+    });
+  }
+
+  return notes.length
+    ? notes
+    : [
+        {
+          state: 'pass' as const,
+          message: copy.ready
+        }
+      ];
+}
+
 function getExportFileName(value: string, format: ExportFormat) {
   const sanitized = value
     .trim()
@@ -2353,6 +2908,21 @@ function getExportFileName(value: string, format: ExportFormat) {
   const fileName = sanitized || `launchframes-export.${extension}`;
 
   return fileName.replace(/\.(png|jpe?g)$/i, `.${extension}`);
+}
+
+function getSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'asset';
+}
+
+function getFontFamily(font: BrandFontId) {
+  return (
+    fontOptions.find((option) => option.id === font)?.cssFamily ??
+    fontOptions[0].cssFamily
+  );
 }
 
 function normalizeSourceUrl(value: string) {
@@ -2510,6 +3080,10 @@ function getCaptureDevice(canvasSize: CanvasSize, frame: FrameState): Scene['dev
   return 'desktop';
 }
 
+function getDefaultFrameForDevice(device: Scene['device']) {
+  return device === 'phone' ? PHONE_FRAME : DESKTOP_FRAME;
+}
+
 function getFrameAspectRatio(canvasSize: CanvasSize, frame: FrameState) {
   return (frame.width / frame.height) * (canvasSize.width / canvasSize.height);
 }
@@ -2526,6 +3100,8 @@ async function renderPreviewPng({
   layers,
   textStyle,
   backgroundStyle,
+  brandKit,
+  fontFamily,
   exportFormat,
   jpegQuality,
   imageSource,
@@ -2542,6 +3118,8 @@ async function renderPreviewPng({
   layers: LayerVisibility;
   textStyle: TextStyleState;
   backgroundStyle: BackgroundStyleState;
+  brandKit: BrandKitState;
+  fontFamily: string;
   exportFormat: ExportFormat;
   jpegQuality: number;
   imageSource: string | null;
@@ -2586,6 +3164,8 @@ async function renderPreviewPng({
       : textLayout.placement === 'top'
         ? textBox.y - 250 * exportScale * copyScale
         : textBox.y;
+  const logoSize = Math.max(34, 72 * exportScale * copyScale);
+  const logoGap = Math.max(18, 30 * exportScale * copyScale);
 
   if (!layers.background && exportFormat === 'jpeg') {
     context.fillStyle = '#ffffff';
@@ -2633,19 +3213,36 @@ async function renderPreviewPng({
   }
 
   if (layers.text) {
+    let copyStartY = textOriginY;
+
+    if (brandKit.logoUrl) {
+      const logo = await loadImage(brandKit.logoUrl);
+      const logoX =
+        resolvedTextAlign === 'center'
+          ? textOriginX + textBox.width / 2 - logoSize / 2
+          : resolvedTextAlign === 'right'
+            ? textOriginX + textBox.width - logoSize
+            : textOriginX;
+      const logoY = Math.max(0, copyStartY - logoSize - logoGap);
+
+      drawImageContain(context, logo, logoX, logoY, logoSize, logoSize);
+    }
+
     drawWrappedText(context, scene.headline, textOriginX, textOriginY, textBox.width, 3, {
       color: foreground,
       size: headlineSize,
       lineHeight: headlineLineHeight,
       weight: textStyle.headlineWeight,
-      align: resolvedTextAlign
+      align: resolvedTextAlign,
+      fontFamily
     });
     drawWrappedText(context, scene.subline, textOriginX, textOriginY + headlineLineHeight * 3 + 52 * exportScale * copyScale * textStyle.gap, textBox.width, 2, {
       color: muted,
       size: sublineSize,
       lineHeight: sublineLineHeight,
       weight: 500,
-      align: resolvedTextAlign
+      align: resolvedTextAlign,
+      fontFamily
     });
   }
   const exportFrame = getExportFrame(scene.device, frame, canvasSize);
@@ -2807,10 +3404,11 @@ function drawWrappedText(
     lineHeight: number;
     weight: number;
     align?: CanvasTextAlign;
+    fontFamily?: string;
   }
 ) {
   context.fillStyle = options.color;
-  context.font = `${options.weight} ${options.size}px Manrope, Inter, Arial, sans-serif`;
+  context.font = `${options.weight} ${options.size}px ${options.fontFamily ?? getFontFamily('manrope')}`;
   context.textAlign = options.align ?? 'left';
   const lineX =
     options.align === 'center'
@@ -2841,6 +3439,28 @@ function drawWrappedText(
     context.fillText(line, lineX, y + index * options.lineHeight);
   });
   context.textAlign = 'left';
+}
+
+function drawImageContain(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+) {
+  const imageAspect = image.naturalWidth / image.naturalHeight;
+  const boxAspect = width / height;
+  const renderWidth = imageAspect > boxAspect ? width : height * imageAspect;
+  const renderHeight = imageAspect > boxAspect ? width / imageAspect : height;
+
+  context.drawImage(
+    image,
+    x + (width - renderWidth) / 2,
+    y + (height - renderHeight) / 2,
+    renderWidth,
+    renderHeight
+  );
 }
 
 function roundRect(

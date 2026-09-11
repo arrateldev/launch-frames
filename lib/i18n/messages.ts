@@ -117,6 +117,14 @@ const messages = {
       title: 'Erstes Launch-Pack',
       sourceEyebrow: 'MVP Studio',
       appUrl: 'App-URL',
+      launchPack: 'Launch-Pack',
+      packScenes: 'Szenen',
+      generateFirstAsset: 'Erstes Asset generieren',
+      brandKit: 'Brand Kit',
+      uploadLogo: 'Logo hochladen',
+      replaceLogo: 'Logo ersetzen',
+      removeLogo: 'Entfernen',
+      brandFont: 'Schrift',
       captureUrl: 'URL als Screenshot aufnehmen',
       capturing: 'Nehme Screenshot auf...',
       captureError: 'Die URL konnte nicht aufgenommen werden. Nutze den Upload-Fallback oder prüfe, ob die Seite öffentlich erreichbar ist.',
@@ -201,12 +209,21 @@ const messages = {
       exportReady: 'Export wurde vorbereitet.',
       exportError: 'Der Export ist fehlgeschlagen. Prüfe, ob die URL öffentlich erreichbar ist.',
       exporting: 'Export wird erstellt...',
+      downloadAsset: 'Asset laden',
       downloadPng: 'Export laden',
+      exportPack: 'Pack als ZIP',
       exportDialogTitle: 'Export-Vorschau',
       closeExportDialog: 'Export schließen',
       exportFileType: 'Dateityp',
       exportFileName: 'Dateiname',
       jpegQuality: 'JPEG-Qualität',
+      storeRules: 'Store-Check',
+      fonts: {
+        manrope: 'Manrope',
+        system: 'System Sans',
+        serif: 'Editorial Serif',
+        mono: 'Developer Mono'
+      },
       packs: {
         social: 'Social Card',
         appStore: 'App Store',
@@ -214,6 +231,24 @@ const messages = {
         microsoft: 'Microsoft Store',
         chromeStore: 'Chrome Web Store',
         chromeStoreSmall: 'Chrome Store Small'
+      },
+      packGroups: {
+        social: 'Social Pack',
+        store: 'Store Pack',
+        browser: 'Browser Extension Pack'
+      },
+      storeRuleMessages: {
+        ready: 'Dieses Preset ist bereit für den Export.',
+        appStoreSize: 'Apple akzeptiert iPhone-Screenshots im PNG- oder JPEG-Format; 1290 x 2796 px ist ein gültiger 6,9-Zoll-Portrait-Wert.',
+        appleSceneCount: 'App Store Connect erlaubt 1 bis 10 Screenshots pro Displaygröße.',
+        googlePlaySize: 'Google Play Feature Graphics müssen 1024 x 500 px groß sein.',
+        googlePlayOpaque: 'Google Play Feature Graphics sollten als JPEG oder 24-bit PNG ohne Transparenz exportiert werden.',
+        googlePlayBranding: 'Google empfiehlt, prominente Branding-Dopplungen mit dem App-Icon zu vermeiden.',
+        microsoftSize: 'Microsoft Desktop-Screenshots müssen mindestens 1366 x 768 px groß sein.',
+        microsoftPng: 'Microsoft Store Screenshots müssen als PNG exportiert werden.',
+        chromeSize: 'Chrome Web Store Screenshots müssen 1280 x 800 oder 640 x 400 px groß sein.',
+        chromeFullBleed: 'Chrome empfiehlt quadratische Ecken, keinen Padding-Rand und Full-Bleed-Screenshots.',
+        socialSize: 'Open-Graph-Assets sind auf 1200 x 630 px vorbereitet.'
       }
     },
     faq: {
@@ -552,6 +587,14 @@ const messages = {
       title: 'First launch pack',
       sourceEyebrow: 'MVP Studio',
       appUrl: 'App URL',
+      launchPack: 'Launch pack',
+      packScenes: 'scenes',
+      generateFirstAsset: 'Generate first asset',
+      brandKit: 'Brand kit',
+      uploadLogo: 'Upload logo',
+      replaceLogo: 'Replace logo',
+      removeLogo: 'Remove',
+      brandFont: 'Font',
       captureUrl: 'Capture URL as screenshot',
       capturing: 'Capturing screenshot...',
       captureError: 'The URL could not be captured. Use the upload fallback or check that the page is publicly reachable.',
@@ -636,12 +679,21 @@ const messages = {
       exportReady: 'Export is ready.',
       exportError: 'Export failed. Check that the URL is publicly reachable.',
       exporting: 'Creating export...',
+      downloadAsset: 'Download asset',
       downloadPng: 'Download export',
+      exportPack: 'Pack as ZIP',
       exportDialogTitle: 'Export preview',
       closeExportDialog: 'Close export',
       exportFileType: 'File type',
       exportFileName: 'File name',
       jpegQuality: 'JPEG quality',
+      storeRules: 'Store check',
+      fonts: {
+        manrope: 'Manrope',
+        system: 'System Sans',
+        serif: 'Editorial Serif',
+        mono: 'Developer Mono'
+      },
       packs: {
         social: 'Social Card',
         appStore: 'App Store',
@@ -649,6 +701,24 @@ const messages = {
         microsoft: 'Microsoft Store',
         chromeStore: 'Chrome Web Store',
         chromeStoreSmall: 'Chrome Store Small'
+      },
+      packGroups: {
+        social: 'Social Pack',
+        store: 'Store Pack',
+        browser: 'Browser Extension Pack'
+      },
+      storeRuleMessages: {
+        ready: 'This preset is ready for export.',
+        appStoreSize: 'Apple accepts iPhone screenshots as PNG or JPEG; 1290 x 2796 px is a valid 6.9-inch portrait size.',
+        appleSceneCount: 'App Store Connect allows 1 to 10 screenshots per display size.',
+        googlePlaySize: 'Google Play feature graphics must be 1024 x 500 px.',
+        googlePlayOpaque: 'Google Play feature graphics should export as JPEG or 24-bit PNG without transparency.',
+        googlePlayBranding: 'Google recommends avoiding prominent branding that duplicates the app icon.',
+        microsoftSize: 'Microsoft desktop screenshots must be at least 1366 x 768 px.',
+        microsoftPng: 'Microsoft Store screenshots must be exported as PNG.',
+        chromeSize: 'Chrome Web Store screenshots must be 1280 x 800 or 640 x 400 px.',
+        chromeFullBleed: 'Chrome recommends square corners, no padding, and full-bleed screenshots.',
+        socialSize: 'Open Graph assets are prepared at 1200 x 630 px.'
       }
     },
     faq: {

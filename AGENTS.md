@@ -16,6 +16,7 @@ This file is the working memory for Codex in this repository. Keep it updated wh
 - App icons are generated from `assets/icons/source.png` with `npm run icons`; the script writes `app/favicon.ico`, `app/icon.png`, and `app/apple-icon.png`.
 - Middleware/proxy behavior is implemented in `proxy.ts`. It redirects non-localized paths to a localized path, sets `x-locale`, persists the `locale` cookie, and protects localized `/dashboard` routes.
 - Database schema is in `lib/db/schema.ts`; migrations are in `lib/db/migrations`.
+- LaunchFrames persistence is prepared with `launch_frame_projects`, `launch_frame_captures`, and `launch_frame_assets`. Projects store brand kit and editor settings in JSONB; captures store scene/source/viewport metadata; assets store generated output metadata and filenames.
 - Auth/session helpers live under `lib/auth`.
 - Stripe and mock billing logic live under `lib/payments`.
 
@@ -30,6 +31,7 @@ This file is the working memory for Codex in this repository. Keep it updated wh
 - Legal pages use stable English slugs for all locales: `/privacy-policy`, `/terms-of-use`, and `/imprint`. Use `localizeLegalPath()` and `legalRoutePaths` from `lib/i18n/config.ts`; old `/datenschutz`, `/terms`, and `/impressum` routes should only redirect.
 - The localized `/links` page is a reusable link-in-bio/social links page. It should stay generic and read website, contact email, product claim, and social profiles from `lib/site-config.ts` helpers.
 - The localized homepage now embeds the real LaunchFrames Studio after a compact product intro, with scroll snapping into the studio section. The standalone localized `/studio` page still renders the same Studio component. The Studio lives in `features/launchframes-studio/studio.tsx` and provides a client-side URL-to-preview or screenshot-upload workflow with pack presets including Chrome Web Store 1280x800 and 640x400, scene copy editing, template switching, brand color control, app/canvas zoom and crop controls, PNG/JPEG export preview, and clean metadata-free canvas rendering.
+- The Studio also supports visible pack groups, multi-scene selection, a client-side ZIP pack export via `jszip`, a lightweight brand kit with uploaded logo, colors, and font choice, and a non-blocking store-rule preflight panel.
 - Real URL screenshots for the Studio are captured through `app/api/capture/route.ts` with Playwright Chromium. Local machines need `npx playwright install chromium` once after dependency install. Hosted/serverless environments use `@sparticuz/chromium` as the Chromium executable fallback.
 - Vercel deployments need the capture function's serverless Chromium files included via `outputFileTracingIncludes` in `next.config.ts`; keep `@sparticuz/chromium` and `playwright-core` externalized there so `/api/capture` can launch Chromium in production.
 - There are still legacy non-localized route groups under `app/(dashboard)` and `app/(login)`. Be careful when changing shared behavior: confirm whether the localized or legacy route is the active target.
